@@ -4,7 +4,7 @@ all: client.o server.o protocol.o
 
 ## Compila todos los archivos *.o
 %.o: %.c
-	gcc -c -g $< -o $@
+	gcc -c $< -o $@
 
 
 clean:

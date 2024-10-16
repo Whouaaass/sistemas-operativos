@@ -7,13 +7,22 @@
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
 #include "protocol.h"
 
+/**
+* prints message on bad command usage
+*/
 void helper();
+
+/**
+* handles signal actions
+*/
+void handle_sig(int sig);
 
 int main(int argc, char const *argv[])
 {
@@ -30,9 +39,9 @@ int main(int argc, char const *argv[])
     char buf[BUFSZ]; // buffer de la comunicación continua
     struct sockaddr_in addr;
 
-
-    // TODO!!
     // 0. instalar los manejadores de SIGINT, SIGTERM
+    signal(SIGINT, handle_sig);
+    signal(SIGTERM, handle_sig);
 
     // 1. Obtener un conector
     s = socket(AF_INET, SOCK_STREAM, 0);
@@ -46,13 +55,13 @@ int main(int argc, char const *argv[])
 
     if (bind(s, (struct sockaddr *) &addr, sizeof(struct sockaddr_in)))
     {
-    	perror("Algo malo sucedio con el bind\n");
+    	perror("Binding error\n");
      	exit(EXIT_FAILURE);
     }
 
     // 3. Colocar el socket disponible - listen
     if (listen(s, 1)) {
-    	perror("Algo malo sucedio con el listen\n");
+    	perror("Listening error\n");
      	exit(EXIT_FAILURE);
     }
 
@@ -65,7 +74,7 @@ int main(int argc, char const *argv[])
     //      enviar el saludo
     //      ....
     if (send_greeting(c) || receive_greeting(c)) {
-    	perror("Error en el protocolo");
+    	perror("Error in salute protocol");
     	exit(EXIT_FAILURE);
     }
 
@@ -75,7 +84,7 @@ int main(int argc, char const *argv[])
 	    	perror("Read failed");
 	     	exit(EXIT_FAILURE);
 	    }
-	    puts(buf);
+	    printf("client: %s\n", buf);
 
 		memset(buf, 0, BUFSZ);
     	scanf("%s", buf);
@@ -87,6 +96,7 @@ int main(int argc, char const *argv[])
 	    	exit(EXIT_FAILURE);
 	    }
     }
+
     // 6. cerrar el socket del cliente c
     close(c);
     // 7. cerrar el socket del servidor s
@@ -96,5 +106,13 @@ int main(int argc, char const *argv[])
 
 
 void helper() {
-	puts("TODO!!: help text");
+	puts("Usage: server PORT");
+	puts("");
+}
+
+
+void handle_sig(int sig)
+{
+    printf("Closing... %d\n", sig);
+    exit(EXIT_FAILURE);
 }

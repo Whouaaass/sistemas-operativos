@@ -8,13 +8,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
+#include <pthread.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
+#include "communication.h"
 #include "protocol.h"
 
+/**
+* prints message on bad command usage
+*/
 void helper();
+
+/**
+* signal handlers
+*/
+void handle_sig(int sig);
 
 int main(int argc, char const *argv[])
 {
@@ -29,10 +40,13 @@ int main(int argc, char const *argv[])
 
 	int s; // socket del servidor
     uint clilen;
-    char* buf;
+    char buf[BUFSZ];
     struct sockaddr_in addr;
 
     // 0. instalar los manejadores de SIGINT, SIGTERM
+    signal(SIGINT, handle_sig);
+    signal(SIGTERM, handle_sig);
+
 
     // 1. obtener un conector - socket
     if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
@@ -53,7 +67,7 @@ int main(int argc, char const *argv[])
     puts("Connecting...");
     if (connect(s, (struct sockaddr *) &addr, sizeof(struct sockaddr_in)))
     {
-    	perror("Algo malo sucedio con el bind");
+    	perror("Binding error");
      	exit(EXIT_FAILURE);
     }
 
@@ -62,33 +76,44 @@ int main(int argc, char const *argv[])
     //      recibir un saludo - receive
     //      ...
     if (send_greeting(s) || receive_greeting(s)) {
-    	perror("Error en el protocolo");
+    	perror("Error in salute protocol");
      	exit(EXIT_FAILURE);
     }
 
+
+
     while (1) {
-    	memset(buf, 0, BUFSZ);
-    	scanf("%s", buf);
-   		if (strcmp(buf, "close") == 0) {
-    		break;
-    	}
+	    memset(buf, 0, BUFSZ);
+	   	scanf("%s", buf);
+	  	if (strcmp(buf, "close") == 0) {
+	  		break;
+	   	}
 	    if (write(s, buf, BUFSZ) == -1) {
 	   		perror("Write failed");
 	    	exit(EXIT_FAILURE);
 	    }
-	   	memset(buf, 0, BUFSZ);
+
+	    memset(buf, 0, BUFSZ);
 	   	if (read(s, buf, BUFSZ) == -1) {
 	    	perror("Read failed");
 	     	exit(EXIT_FAILURE);
 	    }
-	    puts(buf);
+	    printf("Server: %s \n", buf);
+
     }
 
     // 4. cerrar la conexión con el servidor - close
     close(s);
-    exit(EXIT_FAILURE);
+    exit(EXIT_SUCCESS);
 }
 
 void helper() {
-	puts("TODO!!: command help");
+	puts("Usage: client ADDRESS PORT");
+	puts("");
+}
+
+void handle_sig(int sig)
+{
+    printf("Closing... %d\n", sig);
+    exit(EXIT_FAILURE);
 }
