@@ -12,6 +12,7 @@
 
 int send_greeting(int s) {
 	char buf[BUFSZ];
+	memset(buf, 0, BUFSZ);
 	strcpy(buf, "Hola");
 	if (write(s, buf, BUFSZ) == -1) {
 		perror("Write failed");
@@ -27,5 +28,6 @@ int receive_greeting(int s) {
 		perror("Read failed");
 		return -1;
 	}
+	puts(buf);
 	return 0;
 }

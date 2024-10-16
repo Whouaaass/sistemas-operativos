@@ -77,6 +77,7 @@ int main(int argc, char const *argv[])
 	    }
 	    puts(buf);
 
+		memset(buf, 0, BUFSZ);
     	scanf("%s", buf);
      	if (strcmp(buf, "close") == 0) {
       		break;
