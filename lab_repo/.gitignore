@@ -1,0 +1,7 @@
+# Ignore defaults
+docs
+*.o
+*.zip
+
+# Project executable
+versions

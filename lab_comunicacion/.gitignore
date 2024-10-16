@@ -1,5 +1,7 @@
-cliente
-server
+# ignore defaults
+docs/
 *.o
 
-docs/
+# executables
+cliente
+server
