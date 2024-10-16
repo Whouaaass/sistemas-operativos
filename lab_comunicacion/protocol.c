@@ -11,10 +11,8 @@
 #include "protocol.h"
 
 int send_greeting(int s) {
-	char buf[BUFSZ];
-	memset(buf, 0, BUFSZ);
-	strcpy(buf, "Hola");
-	if (write(s, buf, BUFSZ) == -1) {
+	char* buf = "Hola";
+	if (write(s, buf, strlen(buf) + 1) == -1) {
 		return -1;
 	}
 	return 0;
