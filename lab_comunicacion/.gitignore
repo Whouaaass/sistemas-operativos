@@ -3,5 +3,5 @@ docs/
 *.o
 
 # executables
-cliente
+client
 server
