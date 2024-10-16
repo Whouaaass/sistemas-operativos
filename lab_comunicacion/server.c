@@ -57,6 +57,7 @@ int main(int argc, char const *argv[])
     }
 
     // 4. (bloqueante) Esperar por un cliente `c` - accept
+    puts("Waiting for client...");
     c = accept(s, (struct sockaddr *) &addr, &clilen);
 
     // 5. (comunicación)

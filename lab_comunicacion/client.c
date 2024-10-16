@@ -50,6 +50,7 @@ int main(int argc, char const *argv[])
     }
     addr.sin_port = htons(port);
 
+    puts("Connecting...");
     if (connect(s, (struct sockaddr *) &addr, sizeof(struct sockaddr_in)))
     {
     	perror("Algo malo sucedio con el bind");

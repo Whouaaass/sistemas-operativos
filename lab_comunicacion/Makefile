@@ -1,10 +1,10 @@
 all: client.o server.o protocol.o
-	gcc -o server server.o protocol.o
-	gcc -o client client.o protocol.o
+	gcc -o -g server server.o protocol.o
+	gcc -o -g client client.o protocol.o
 
 ## Compila todos los archivos *.o
 %.o: %.c
-	gcc -c $< -o $@
+	gcc -c -g $< -o $@
 
 
 clean:
