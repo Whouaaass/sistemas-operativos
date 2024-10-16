@@ -13,7 +13,7 @@
 int send_greeting(int s) {
 	char buf[BUFSZ];
 	memset(buf, 0, BUFSZ);
-	strcpy(buf, "Hola");
+	strcpy(buf, "Hi! ");
 	if (write(s, buf, BUFSZ) == -1) {
 		return -1;
 	}

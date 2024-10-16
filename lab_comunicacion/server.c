@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include "comunication.h"
 #include "protocol.h"
 
 /**
@@ -78,24 +79,7 @@ int main(int argc, char const *argv[])
     	exit(EXIT_FAILURE);
     }
 
-    while (1) {
-    	memset(buf, 0, BUFSZ);
-    	if (read(c, buf, BUFSZ) == -1) {
-	    	perror("Read failed");
-	     	exit(EXIT_FAILURE);
-	    }
-	    printf("client: %s\n", buf);
-
-		memset(buf, 0, BUFSZ);
-    	scanf("%s", buf);
-     	if (strcmp(buf, "close") == 0) {
-      		break;
-      	}
-	    if (write(c, buf, BUFSZ) == -1) {
-	   		perror("Write failed");
-	    	exit(EXIT_FAILURE);
-	    }
-    }
+    keep_comunicating(c, "server");
 
     // 6. cerrar el socket del cliente c
     close(c);

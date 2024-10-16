@@ -14,7 +14,7 @@
 #include <sys/socket.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
-#include "communication.h"
+#include "comunication.h"
 #include "protocol.h"
 
 /**
@@ -80,27 +80,7 @@ int main(int argc, char const *argv[])
      	exit(EXIT_FAILURE);
     }
 
-
-
-    while (1) {
-	    memset(buf, 0, BUFSZ);
-	   	scanf("%s", buf);
-	  	if (strcmp(buf, "close") == 0) {
-	  		break;
-	   	}
-	    if (write(s, buf, BUFSZ) == -1) {
-	   		perror("Write failed");
-	    	exit(EXIT_FAILURE);
-	    }
-
-	    memset(buf, 0, BUFSZ);
-	   	if (read(s, buf, BUFSZ) == -1) {
-	    	perror("Read failed");
-	     	exit(EXIT_FAILURE);
-	    }
-	    printf("Server: %s \n", buf);
-
-    }
+    keep_comunicating(s, "client");
 
     // 4. cerrar la conexión con el servidor - close
     close(s);
