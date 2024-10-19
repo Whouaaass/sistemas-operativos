@@ -7,3 +7,6 @@ out
 # Project executable
 rversions
 rversionsd
+
+# Project Ignores
+.versions

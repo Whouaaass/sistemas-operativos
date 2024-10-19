@@ -87,7 +87,7 @@ Es el mensaje personalizado para cada método del cliente
 - LIST: tiene el nombre del archivo
 
 **Method Server Response**
-Es la respuesta personalizada para cada método del srvidor
+Es la respuesta personalizada para cada método del servidor
 - GET: tiene el codigo de respuesta y el hash
 - ADD: tiene el codigo de respuesta
 - LIST: tiene el codigo de respuesta y tamaño de la lista

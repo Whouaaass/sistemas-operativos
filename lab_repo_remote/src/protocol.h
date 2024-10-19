@@ -10,7 +10,19 @@
 
 #define BUFSZ 80
 
-#define SERVER_DIR ".server/"
+#define SERVER_DIR ".versions/"
+
+/**
+ * Codigo de los métodos
+ */
+typedef enum {
+    GET,
+    ADD,
+    LIST
+} method_code;
+
+
+
 
 
 /**

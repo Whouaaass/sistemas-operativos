@@ -5,3 +5,7 @@ docs
 
 # Project executable
 versions
+
+
+#Project ignores
+.versions/

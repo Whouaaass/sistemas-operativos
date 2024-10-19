@@ -1,6 +1,7 @@
 # ignore defaults
 docs/
 *.o
+*.zip
 
 # executables
 client
