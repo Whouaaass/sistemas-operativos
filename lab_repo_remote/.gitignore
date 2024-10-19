@@ -1,7 +1,9 @@
 # Ignore defaults
 docs
+out
 *.o
 *.zip
 
 # Project executable
-versions
+rversions
+rversionsd

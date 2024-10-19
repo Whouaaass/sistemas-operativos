@@ -24,6 +24,10 @@ $(OUT_DIR)/%.o: $(SRC_DIR)/%.c
 
 # Clean up
 clean:
-	rm -f $(OUT_DIR)/*.o
+	rm -f -r $(OUT_DIR)/*.o rversions rversionsd docs
+
+# Make documentation
+doc:
+	doxygen
 
 .PHONY: all clean

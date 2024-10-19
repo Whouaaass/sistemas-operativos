@@ -8,8 +8,10 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-
 #define BUFSZ 80
+
+#define SERVER_DIR ".server/"
+
 
 /**
  * @brief Envía un mensaje de saludo
@@ -24,5 +26,19 @@ int send_greeting(int s);
  * @return 0 al recibir correctamente, -1 al tener un error
  */
 int receive_greeting(int s);
+
+int client_add();
+
+int client_get();
+
+int client_list();
+
+int server_add();
+
+int server_get();
+
+int server_list();
+
+
 
 #endif
