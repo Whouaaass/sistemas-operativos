@@ -1,14 +1,15 @@
+/**
+ * @file
+ * @brief Interfaz Protocolo de comunicación
+ * @author Fredy Esteban Anaya Salazar <fredyanaya@unicauca.edu.co>
+ * @author Jorge Andrés Martinez Varón <jorgeandre@unicauca.edu.co>
+ * @copyright MIT License
+ */
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
 
 #define BUFSZ 80
-/**
- * @file
- * @brief Interfaz Protocolo de comunicación
- * @author Fredy Esteban Anaya Salazar <fredyanaya@unicauca.edu.co>
- * @copyright MIT License
- */
 
 /**
  * @brief Envía un mensaje de saludo

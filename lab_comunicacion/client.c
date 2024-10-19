@@ -2,6 +2,7 @@
  * @file
  * @brief Programa Cliente
  * @author Fredy Esteban Anaya Salazar <fredyanaya@unicauca.edu.co>
+ * @author Jorge Andrés Martinez Varón <jorgeandre@unicauca.edu.co>
  * @copyright MIT License
  */
 #include <netinet/in.h>

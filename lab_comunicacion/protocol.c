@@ -2,6 +2,7 @@
  * @file
  * @brief Protocolo de comunicación
  * @author Fredy Esteban Anaya Salazar <fredyanaya@unicauca.edu.co>
+ * @author Jorge Andrés Martinez Varón <jorgeandre@unicauca.edu.co>
  * @copyright MIT License
  */
 #include <string.h>

@@ -5,7 +5,7 @@
  * @author Fredy Esteban Anaya Salazar <fredyanaya@unicauca.edu.co>
  * @author Jorge Andres Martinez Varon <jorgeandre@unicauca.edu.co>
  * Sistema de Control de Versiones
- * Uso: 
+ * Uso:
  *      versions add ARCHIVO "Comentario" : Adiciona una version del archivo al repositorio
  *      versions list ARCHIVO             : Lista las versiones del archivo existentes
  *      versions list                     : Lista todos los archivos almacenados en el repositorio
