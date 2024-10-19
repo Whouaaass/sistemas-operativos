@@ -69,4 +69,30 @@ Se puede especificar el archivo del cual se desee listar las versiones, de lo co
 4. Manda la lista
 5. Cierra la conexión
 
+
+## Estructura de los mensajes
+**Method Indicator**
+Será un enum, que tendra las opciones de:
+- GET
+- ADD
+- LIST
+
+**Size Indicator**
+Sera un unsigned int, que contendra el número de bytes que se tendrán que leer a con
+
+**Method Client Message**
+Es el mensaje personalizado para cada método del cliente
+- GET: tiene el nombre del archivo y la version
+- ADD: tiene el nombre del archivo, el hash y el comentario
+- LIST: tiene el nombre del archivo
+
+**Method Server Response**
+Es la respuesta personalizada para cada método del srvidor
+- GET: tiene el codigo de respuesta y el hash
+- ADD: tiene el codigo de respuesta
+- LIST: tiene el codigo de respuesta y tamaño de la lista
+
+
+
+
 	`Fredy Esteban Anaya Salazar`
