@@ -98,8 +98,7 @@ int receive_greeting(int s, const int greeter) {
         strcpy(buf, "DENY");
         write(s, buf, BUFSZ);
         return -1;
-    }
-    puts(buf);
+    }    
     return 0;
 }
 
@@ -195,16 +194,17 @@ sres_code client_get(int s, char *filename, int version) {
     sent = write(s, &cres, sizeof(cres_code));
     if (sent != sizeof(cres_code)) return RSOCKET_ERROR;
     if (cres == DENY) {
-        puts("file up to date");
+        puts("Archivo actualizado");
         return RFILE_TO_DATE;
     }
-
+    
+    puts("Recibiendo archivo...");
     // 6. Recibe el archivo
     rserver = receive_file(s, filename);
     if (rserver != RSERVER_OK) {
         return rserver;
     }
-    puts("file getted sucessfully");
+    puts("Archivo descargado correctamente");
     return RSERVER_OK;
 }
 
@@ -221,7 +221,7 @@ sres_code client_list(int s, char *filename) {
     int counter = 0;
     int readed;
 
-    // 1. Enviar el método
+    // 1. Enviar el método    
     if (write(s, &method, sizeof(method_code)) == -1) {
         return RSOCKET_ERROR;
     }
@@ -359,12 +359,15 @@ int server_get(int s) {
     char filepath[PATH_MAX];
     int aux;
 
+    puts("GET METHOD");     
     // 1. recibe la peticion
     memset(&request, 0, sizeof(request));
-    received = read(s, &request.filename, BUFSZ);
-    if (received != BUFSZ) return -1;
     received = read(s, &request.version, sizeof(int));
     if (received != sizeof(int)) return -1;
+    puts("version recibida");    
+    received = read(s, &request.filename, BUFSZ);
+    if (received != BUFSZ) return -1;
+    puts("filename recibida");
 
     // 2. responde indicando si el archivo existe
     rserver =
