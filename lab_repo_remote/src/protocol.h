@@ -33,7 +33,8 @@ typedef enum {
     RFILE_NOT_FOUND, /* !< El archivo no existe */
     RVERSION_NOT_FOUND, /* !< La versión solicitada no existe */
     RSOCKET_ERROR, /* !< Error de socket (En escritura o lectura) */    
-    RERROR, /* !< Error no especificado */
+    RILLEGAL_METHOD, /* !< Método no permitido */
+    RERROR, /* !< Error no especificado */    
 } sres_code;
 
 /**
@@ -110,6 +111,6 @@ sres_code client_list(int s, char* filename);
  * @param s socket del cliente
  * @return int 0 para exito, -1 para error
  */
-int server_receive_request(int s);
+sres_code server_receive_request(int s);
 
 #endif

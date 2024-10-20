@@ -36,11 +36,18 @@ void handle_signal(int sig);
 
 void *handle_client(void *arg);
 
+// Conexiones con el servidor
 struct server_connection_node {
     pthread_t *threads;
     int sockets;
     struct server_connection_node *next;
 } connection_head;
+
+// Argumentos del manejador de clientes
+struct clienth_args {
+    int socket;
+    pthread_t thread;
+};
 
 int lserver_socket;  // socket del servidor
 
@@ -150,7 +157,7 @@ void *handle_client(void *arg) {
     }
 
     if (server_receive_request(c) == -1) {
-        perror("Error: ");
+        perror("Error");
     }
 
     close(c);

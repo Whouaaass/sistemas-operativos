@@ -67,6 +67,8 @@ int server_get(int s);
  */
 int server_list(int s);
 
+int save_receive_data(int s, char *buf, int size);
+
 int send_greeting(int s, const int greeter) {
     char buf[BUFSZ];
     memset(buf, 0, BUFSZ);
@@ -131,17 +133,6 @@ sres_code client_add(int s, char *filename, char *comment) {
     sent = write(s, buf, BUFSZ);
     if (sent != BUFSZ) return RSOCKET_ERROR;
 
-    /*
-    memset(&request, 0, sizeof(request));
-    strcpy(request.filename, filename);
-    strcpy(request.comment, comment);
-    strcpy(request.hash, hash);
-
-    if (write(s, &request, sizeof(request)) == -1) {
-        return RSOCKET_ERROR;
-    }
-    */
-
     // 3. Recibir una respuesta del servidor (indica si se puede subir el
     // archivo)
     if (read(s, &rserver, sizeof(sres_code)) == -1) {
@@ -160,8 +151,7 @@ sres_code client_add(int s, char *filename, char *comment) {
     // 5. Recibe la respuesta del servidor
     received = read(s, &rserver, sizeof(sres_code));
     if (received != sizeof(sres_code)) return RSOCKET_ERROR;
-    if (rserver != RSERVER_OK) return rserver;   
-    
+    if (rserver != RSERVER_OK) return rserver;
 
     return RSERVER_OK;
 }
@@ -171,47 +161,39 @@ sres_code client_get(int s, char *filename, int version) {
     struct get_request request;
     sres_code rserver;
     cres_code cres;
+    ssize_t sent, received;
     char server_hash[HASH_SIZE];
     char local_hash[HASH_SIZE];
+    char buf[BUFSZ];
 
     // 1. Enviar el método
-    if (write(s, &method, sizeof(method_code)) == -1) {
-        return RSOCKET_ERROR;
-    }
+    sent = write(s, &method, sizeof(method_code));
+    if (sent != sizeof(method_code)) return RSOCKET_ERROR;
 
-    // 2. Enviar el nombre del archivo y la versión
-    memset(&request, 0, sizeof(request));
-    request.version = version;
-    strcpy(request.filename, filename);
-    if (write(s, &request, sizeof(request)) == -1) {
-        return RSOCKET_ERROR;
-    }
+    // 2. Enviar la versión y el nombre del archivo
+    sent = write(s, &version, sizeof(int));
+    if (sent != sizeof(int)) return RSOCKET_ERROR;
+    memset(buf, 0, BUFSZ);
+    snprintf(buf, BUFSZ, "%s", filename);
+    sent = write(s, buf, BUFSZ);
+    if (sent != BUFSZ) return RSOCKET_ERROR;
 
     // 3. Recibe la respuesta del servidor
-    if (read(s, &rserver, sizeof(sres_code)) == -1) {
-        return RSOCKET_ERROR;
-    }
-    if (rserver != RSERVER_OK) {
-        return rserver;
-    }
+    received = read(s, &rserver, sizeof(sres_code));
+    if (received != sizeof(sres_code)) return RSOCKET_ERROR;
+    if (rserver != RSERVER_OK) return rserver;
 
     // 4. Recibe el hash de la versión
-    if (read(s, &server_hash, HASH_SIZE) == -1) {
-        return RSOCKET_ERROR;
-    }
+    received = read(s, server_hash, HASH_SIZE);
+    if (received != HASH_SIZE) return RSOCKET_ERROR;
 
     // 5. responde si el archivo local ya esta actualizado
-    if (get_file_hash(filename, local_hash) == 0) {
+    if (get_file_hash(filename, local_hash) == NULL) {
         return RERROR;
     }
-    if (EQUALS(server_hash, local_hash)) {
-        cres = DENY;
-    } else {
-        cres = CONFIRM;
-    }
-    if (write(s, &cres, sizeof(cres_code)) == -1) {
-        return RSOCKET_ERROR;
-    }
+    cres = EQUALS(server_hash, local_hash) ? DENY : CONFIRM;
+    sent = write(s, &cres, sizeof(cres_code));
+    if (sent != sizeof(cres_code)) return RSOCKET_ERROR;
     if (cres == DENY) {
         puts("file up to date");
         return RFILE_TO_DATE;
@@ -284,17 +266,13 @@ sres_code client_list(int s, char *filename) {
     return RSERVER_OK;
 }
 
-int server_receive_request(int s) {
+sres_code server_receive_request(int s) {
     method_code method;
     int readed;
 
-    // 1. recibe el método
-    if ((readed = read(s, &method, sizeof(method_code))) == -1) {
-        return -1;
-    }
-    if (readed != sizeof(method_code)) {
-        return -1;
-    }
+    // 1. recibe el método a ejecutar
+    readed = read(s, &method, sizeof(method_code));
+    if (readed != sizeof(method_code)) return RSOCKET_ERROR;
 
     // 2. ejecuta el método
     switch (method) {
@@ -305,7 +283,7 @@ int server_receive_request(int s) {
         case LIST:
             return server_list(s);
         default:
-            return -1;
+            return RILLEGAL_METHOD;
     }
 }
 
@@ -375,7 +353,6 @@ int server_get(int s) {
     struct get_request request;
     sres_code rserver;
     cres_code rclient;
-
     ssize_t received;
     ssize_t sent;
     file_version v;
@@ -383,16 +360,17 @@ int server_get(int s) {
     int aux;
 
     // 1. recibe la peticion
-    received = read(s, &request, sizeof(request));
-    if (received != sizeof(request)) return -1;
+    memset(&request, 0, sizeof(request));
+    received = read(s, &request.filename, BUFSZ);
+    if (received != BUFSZ) return -1;
+    received = read(s, &request.version, sizeof(int));
+    if (received != sizeof(int)) return -1;
 
     // 2. responde indicando si el archivo existe
-    if (get_version(&v, request.filename, request.version) ==
-        VERSION_NOT_FOUND) {
-        rserver = RFILE_NOT_FOUND;
-    } else {
-        rserver = RSERVER_OK;
-    }
+    rserver =
+        get_version(&v, request.filename, request.version) == VERSION_NOT_FOUND
+            ? RFILE_NOT_FOUND
+            : RSERVER_OK;
     sent = write(s, &request, sizeof(request));
     if (sent != sizeof(request)) return -1;
     if (rserver != RSERVER_OK) return -1;
@@ -542,20 +520,26 @@ int send_versions(int s, char *filename) {
     fp = fopen(VERSIONS_DIR "/" VERSIONS_DB, "r");
     if (fp == NULL) return -1;
 
-    while (1) {
+    while (counter--) {
         readed = fread(&v, sizeof(file_version), 1, fp);
         if (readed == 0) break;
-        if (readed == -1) return -1;
+        if (readed == -1) break;
         if ((filename[0] == 0 || EQUALS(filename, v.filename))) {
             sent = send(s, v.comment, sizeof(v.comment), 0);
-            if (sent != sizeof(v.comment)) return -1;
+            if (sent != sizeof(v.comment)) break;
             memset(buf, 0, BUFSZ);
             strcpy(buf, v.filename);
             sent = send(s, buf, BUFSZ, 0);
-            if (sent != BUFSZ) return -1;
+            if (sent != BUFSZ) break;
             sent = send(s, &v.hash, sizeof(v.hash), 0);
-            if (sent != sizeof(v.hash)) return -1;
+            if (sent != sizeof(v.hash)) break;
         }
+    }
+
+    if (counter > 0) {        
+        printf("sent: %ld\nreaded %ld\n", sent, readed);        
+        fclose(fp);
+        return -1;
     }
 
     // Espera a que el cliente termine de ver la lista
@@ -567,4 +551,15 @@ int send_versions(int s, char *filename) {
     return 0;
 }
 
-void version_to_stream() {}
+int safe_receive_data(int s, char *buf, int size) {
+    int received;
+    char *buf_start = buf;
+    while (size > 0) {
+        received = recv(s, buf_start, size, 0);
+        if (received == -1) return -1;
+        size -= received;
+        buf += received;
+        buf_start += received;
+    }
+    return 0;
+}
