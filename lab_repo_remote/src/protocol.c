@@ -176,15 +176,18 @@ sres_code client_get(int s, char *filename, int version) {
     snprintf(buf, BUFSZ, "%s", filename);
     sent = write(s, buf, BUFSZ);
     if (sent != BUFSZ) return RSOCKET_ERROR;
+    puts("peticion enviada");
 
-    // 3. Recibe la respuesta del servidor
+    // 3. Recibe la respuesta del servidor indicando si el archivo existe
     received = read(s, &rserver, sizeof(sres_code));
     if (received != sizeof(sres_code)) return RSOCKET_ERROR;
     if (rserver != RSERVER_OK) return rserver;
+    puts("respuesta recibida");
 
     // 4. Recibe el hash de la versión
     received = read(s, server_hash, HASH_SIZE);
     if (received != HASH_SIZE) return RSOCKET_ERROR;
+    puts("hash recibido");
 
     // 5. responde si el archivo local ya esta actualizado
     if (get_file_hash(filename, local_hash) == NULL) {
@@ -357,25 +360,26 @@ int server_get(int s) {
     ssize_t sent;
     file_version v;
     char filepath[PATH_MAX];
+    char buf[BUFSZ];
     int aux;
 
-    puts("GET METHOD");     
+
     // 1. recibe la peticion
     memset(&request, 0, sizeof(request));
     received = read(s, &request.version, sizeof(int));
     if (received != sizeof(int)) return -1;
-    puts("version recibida");    
-    received = read(s, &request.filename, BUFSZ);
+    
+    received = read(s, buf, BUFSZ);
     if (received != BUFSZ) return -1;
-    puts("filename recibida");
+    snprintf(request.filename,BUFSZ, "%s", buf);   
 
     // 2. responde indicando si el archivo existe
     rserver =
         get_version(&v, request.filename, request.version) == VERSION_NOT_FOUND
             ? RFILE_NOT_FOUND
             : RSERVER_OK;
-    sent = write(s, &request, sizeof(request));
-    if (sent != sizeof(request)) return -1;
+    sent = write(s,&rserver, sizeof(sres_code));
+    if (sent != sizeof(sres_code)) return -1;
     if (rserver != RSERVER_OK) return -1;
 
     // 4. responde con el hash de la versión
@@ -426,12 +430,8 @@ int send_file(int s, char *filename) {
 
     // 0. Consulta el tamaño del archivo
     struct stat file_stat;
-    if (stat(filename, &file_stat) == -1) {
-        return -1;
-    }
-    if (file_stat.st_size > content_max) {
-        return -1;
-    }
+    if (stat(filename, &file_stat) == -1) return -1;
+    if (file_stat.st_size > content_max) return -1;    
 
     file_size = (content_size)file_stat.st_size;
 
@@ -450,7 +450,6 @@ int send_file(int s, char *filename) {
     while (file_size -= nread) {
         nread = fread(buf, sizeof(char), BUFSZ, fp);
         if (nread == 0 || nread == -1) break;
-        file_size -= nread;
         sent = send(s, buf, nread, 0);
         if (sent == -1 || sent != nread) break;
     }
@@ -479,16 +478,14 @@ int receive_file(int s, char *endpath) {
     }
 
     // 2. Recibe el contenido del archivo
-    while (file_size > 0) {
-        int rchunk_size = file_size < 0 ? BUFSZ : file_size;
+    while (file_size -= received) {        
         memset(buf, 0, BUFSZ);
-        received = recv(s, buf, rchunk_size, 0);
-        if (received == -1) break;
-        file_size -= received;
+        received = recv(s, buf, BUFSZ, 0);
+        if (received == 0 || received == -1) break;        
         nwrite = fwrite(buf, sizeof(char), received, fp);
         if (nwrite != received) break;
     }
-
+    
     fclose(fp);
     if (file_size != 0) return -1;
     return 0;

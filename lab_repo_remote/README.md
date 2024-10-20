@@ -61,3 +61,6 @@ plejo. Para la implementación de este programa, se usará el módulo auxiliar
 sha256, el cual implementa el algoritmo del mismo nombre y permite obtener
 el código SHA de 256 bits (64 bytes + NULL). (ver función get_file_hash
 en el código base proporcionado).
+
+
+algo mas
