@@ -10,6 +10,7 @@
 #include <linux/limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -217,6 +218,7 @@ sres_code client_list(int s, char *filename) {
     sres_code rserver;
     cres_code rclient;
     file_version v;
+    ssize_t received;
     int list_size;
     char req_filename[PATH_MAX];
     int counter = 0;
@@ -236,24 +238,13 @@ sres_code client_list(int s, char *filename) {
     }
 
     // 3. Recibe el tamaño de la lista a recibir
-    if (read(s, &list_size, sizeof(int)) == -1) {
-        return -1;
-    }
-    rclient = CONFIRM;
-    if (write(s, &rclient, sizeof(cres_code)) == -1) {
-        return RSOCKET_ERROR;
-    }
+    received = recv(s, &list_size, sizeof(int), 0);
+    if (received != sizeof(int)) return RSOCKET_ERROR;    
 
     // 4. Recibe versiones hasta que se indique parar
     while (list_size--) {
-        if (read(s, &v, sizeof(file_version)) == -1) {
-            return RSOCKET_ERROR;
-        }
-
-        if (write(s, &rclient, sizeof(cres_code)) == -1) {
-            return RSOCKET_ERROR;
-        }
-
+        received = recv(s, &v, sizeof(file_version), 0);
+        if (received != sizeof(file_version)) return RSOCKET_ERROR;
         if (filename != NULL) {
             printf("%i ", ++counter);
             print_version(&v);
@@ -417,8 +408,9 @@ int server_list(int s) {
 int send_file(int s, char *filename) {
     FILE *fp;
     char buf[BUFSZ];
-    ssize_t nread;
+    ssize_t nread = 0;
     content_size file_size;
+    ssize_t sent;
     int aux;
 
     // 0. Consulta el tamaño del archivo
@@ -444,26 +436,29 @@ int send_file(int s, char *filename) {
     }
 
     // 3. Envia el contenido del archivo
-    while (nread = fread(buf, sizeof(char), BUFSZ, fp), nread > 0) {
-        file_size -= nread;
-        if (write(s, buf, nread) == -1) {
-            fclose(fp);
-            return -1;
-        }
+    while (file_size -= nread) {
+        nread = fread(buf, sizeof(char), BUFSZ, fp);
+        if (nread == 0 || nread == -1) break;        
+        file_size -= nread;        
+        sent = send(s, buf, nread, 0);
+        if (sent == -1 || sent != nread) break;        
     }
+
     fclose(fp);
+    if (file_size != 0) return -1;
     return 0;
-}
+}    
+    
 
 int receive_file(int s, char *endpath) {
     FILE *fp;
     content_size file_size;
     char buf[BUFSZ];
     size_t nwrite;
-    int aux;
+    ssize_t received;
 
     // 0. Recibe el tamaño del archivo
-    if ((aux = read(s, &file_size, sizeof(content_size))) == -1 || aux == 0) {
+    if (read(s, &file_size, sizeof(content_size)) != sizeof(content_size)) {
         return -1;
     }
 
@@ -474,18 +469,18 @@ int receive_file(int s, char *endpath) {
     }
 
     // 2. Recibe el contenido del archivo
-    while (aux = read(s, buf, BUFSZ), aux != -1 && aux != 0 && file_size > 0) {
-        file_size -= aux;
-        if (nwrite = fwrite(buf, sizeof(char), aux, fp), nwrite != aux) {
-            return -1;
-        }
-        if (file_size < BUFSZ) {
-            read(s, buf, file_size);
-            fwrite(buf, sizeof(char), file_size, fp);
-            break;
-        }
-    }
+    while (file_size > 0) {
+        int rchunk_size = file_size < 0 ? BUFSZ : file_size;
+        memset(buf, 0, BUFSZ);
+        received = recv(s, buf, rchunk_size, 0);        
+        if (received == -1) break;
+        file_size -= received;
+        nwrite = fwrite(buf, sizeof(char), received, fp);
+        if (nwrite != received) break;
+    }    
+    
     fclose(fp);
+    if (file_size != 0) return -1;
     return 0;
 }
 
@@ -494,13 +489,14 @@ int send_versions(int s, char *filename) {
     file_version v;
     cres_code rclient;
     int counter = 0;
-    int readed;
+    size_t readed;
+    ssize_t sent;
     int aux;
 
     // Envia el tamaño de la lista
-    if ((fp = fopen(VERSIONS_DIR "/" VERSIONS_DB, "r")) == NULL) {
-        return -1;
-    }
+    fp = fopen(VERSIONS_DIR "/" VERSIONS_DB, "r");
+    if (fp == NULL) return -1;
+    
     while ((readed = fread(&v, sizeof(file_version), 1, fp)) == 1) {
         if (filename[0] == 0)
             counter++;
@@ -508,33 +504,25 @@ int send_versions(int s, char *filename) {
             counter++;
     }
     fclose(fp);
-    if (write(s, &counter, sizeof(int)) == -1) {
-        return -1;
-    }
-    if (aux = read(s, &rclient, sizeof(cres_code)), aux == -1 || rclient == DENY) {
-        return -1;
-    }
+    if (write(s, &counter, sizeof(int)) == -1) return -1;    
 
-    if (counter == 0) {
-        return 0;
-    }
+    if (counter == 0) return 0;
 
     // Envia la lista
-    if ((fp = fopen(VERSIONS_DIR "/" VERSIONS_DB, "r")) == NULL) {
-        return -1;
-    }
-    while ((readed = fread(&v, sizeof(file_version), 1, fp)) == 1) {
-        if ((filename[0] == 0 || EQUALS(filename, v.filename)) &&
-            write(s, &v, sizeof(file_version)) == -1) {
-            fclose(fp);
-            return -1;
-        }
-        if (aux = write(s, &rclient, sizeof(cres_code)), aux == -1 || rclient == DENY) {
-            fclose(fp);
-            return -1;
-        }
-    }
-    fclose(fp);
+    fp = fopen(VERSIONS_DIR "/" VERSIONS_DB, "r");
+    if (fp == NULL) return -1;
 
+    while (1) {
+        readed = fread(&v, sizeof(file_version), 1, fp);
+        if (readed == 0) break;
+        if (readed == -1) return -1;
+        if ((filename[0] == 0 || EQUALS(filename, v.filename))) {
+            sent = send(s, &v, sizeof(file_version), 0);            
+            if (sent == -1) return -1;
+            if (sent != sizeof(file_version)) return -1;
+        }
+    }
+
+    fclose(fp);
     return 0;
 }
