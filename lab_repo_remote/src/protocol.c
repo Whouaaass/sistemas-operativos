@@ -231,11 +231,11 @@ sres_code client_list(int s, char *filename) {
         return RSOCKET_ERROR;
     }
 
-    memset(req_filename, 0, PATH_MAX);
-    if (filename != 0) strcpy(req_filename, filename);
+    memset(buf, 0, BUFSZ);     
+    if (filename != 0) snprintf(buf, BUFSZ, "%s", filename);
 
     // 2. Manda el nombre del archivo
-    if (write(s, req_filename, PATH_MAX) == -1) {
+    if (write(s, buf, BUFSZ) != BUFSZ) { 
         return RSOCKET_ERROR;
     }
 
@@ -405,12 +405,14 @@ int server_get(int s) {
 
 int server_list(int s) {
     char filename[PATH_MAX];
+    char buf[BUFSZ];
     int aux;
 
     // 1. recibe el nombre del archivo
-    if ((aux = read(s, &filename, PATH_MAX)) == -1 || aux == 0) {
+    if (read(s, &buf, BUFSZ) != BUFSZ) {
         return -1;
     }
+    strcpy(filename, buf);
 
     // 2. envia la lista
     if (send_versions(s, filename) == -1) {
