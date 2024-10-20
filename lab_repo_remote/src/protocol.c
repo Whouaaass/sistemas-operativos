@@ -436,9 +436,8 @@ int send_file(int s, char *filename) {
     file_size = (content_size)file_stat.st_size;
 
     // 1. Envia el tamaño del archivo
-    if ((aux = write(s, &file_size, sizeof(content_size))) == -1 || aux == 0) {
-        return -1;
-    }
+    sent = write(s, &file_size, sizeof(content_size));
+    if (sent != sizeof(content_size)) return -1;
 
     // 2. Abre el archivo
     if ((fp = fopen(filename, "r")) == NULL) {
@@ -447,7 +446,8 @@ int send_file(int s, char *filename) {
     }
 
     // 3. Envia el contenido del archivo
-    while (file_size -= nread) {
+    sent = 0;
+    while (file_size -= sent) {
         nread = fread(buf, sizeof(char), BUFSZ, fp);
         if (nread == 0 || nread == -1) break;
         sent = send(s, buf, nread, 0);
@@ -467,9 +467,8 @@ int receive_file(int s, char *endpath) {
     ssize_t received;
 
     // 0. Recibe el tamaño del archivo
-    if (read(s, &file_size, sizeof(content_size)) != sizeof(content_size)) {
-        return -1;
-    }
+    received = read(s, &file_size, sizeof(content_size));
+    if (received != sizeof(content_size)) return -1;    
 
     // 1. Abre el archivo
     if ((fp = fopen(endpath, "wb")) == NULL) {
@@ -478,14 +477,14 @@ int receive_file(int s, char *endpath) {
     }
 
     // 2. Recibe el contenido del archivo
-    while (file_size -= received) {        
-        memset(buf, 0, BUFSZ);
+    received = 0;
+    while (file_size -= received) {                
         received = recv(s, buf, BUFSZ, 0);
         if (received == 0 || received == -1) break;        
         nwrite = fwrite(buf, sizeof(char), received, fp);
         if (nwrite != received) break;
     }
-    
+
     fclose(fp);
     if (file_size != 0) return -1;
     return 0;
