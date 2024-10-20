@@ -218,6 +218,7 @@ sres_code client_list(int s, char *filename) {
     sres_code rserver;
     cres_code rclient;
     file_version v;
+    char buf[BUFSZ];
     ssize_t received;
     ssize_t to_receive;
     int list_size;
@@ -246,14 +247,10 @@ sres_code client_list(int s, char *filename) {
     while (list_size--) {
         received = recv(s, v.comment, sizeof(v.comment), 0);
         if (received != sizeof(v.comment)) return RSOCKET_ERROR;
-        to_receive = sizeof(v.filename);
-        while (to_receive > 0) {
-            received = recv(s, v.filename + (sizeof(v.filename) - to_receive), to_receive, 0);
-            if (received == -1) return RSOCKET_ERROR;
-            to_receive -= received;
-        }
-        
-        if (received != sizeof(v.filename)) return RSOCKET_ERROR;
+        memset(buf, 0, BUFSZ);
+        received = recv(s, buf, BUFSZ, 0);
+        if (received != BUFSZ) return RSOCKET_ERROR;
+        strcpy(v.filename, buf);
         received = recv(s, &v.hash, sizeof(v.hash), 0);
         if (received != sizeof(v.hash)) return RSOCKET_ERROR;
         
@@ -500,6 +497,7 @@ int send_versions(int s, char *filename) {
     FILE *fp;
     file_version v;
     cres_code rclient;
+    char buf[BUFSZ];
     int counter = 0;
     size_t readed;
     ssize_t sent;
@@ -530,9 +528,11 @@ int send_versions(int s, char *filename) {
         if (readed == -1) return -1;
         if ((filename[0] == 0 || EQUALS(filename, v.filename))) {            
             sent = send(s, v.comment, sizeof(v.comment), 0);
-            if (sent != sizeof(v.comment)) return -1;
-            sent = send(s, v.filename, sizeof(v.filename), 0);
-            if (sent != sizeof(v.filename)) return -1;
+            if (sent != sizeof(v.comment)) return -1;                                                
+            memset(buf, 0, BUFSZ);
+            strcpy(buf, v.filename);
+            sent = send(s, buf, BUFSZ, 0);            
+            if (sent != BUFSZ) return -1;
             sent = send(s, &v.hash, sizeof(v.hash), 0);
             if (sent != sizeof(v.hash)) return -1;
         }
