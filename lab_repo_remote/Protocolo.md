@@ -46,7 +46,7 @@ El método get comprende el envio de un archivo al cliente
 1. Recibe el nombre/identificador del método ("GET")
 2. Recibe el nombre del archivo, junto con su versión
 3. Si el archivo no existe, manda un mensaje diciendo que la versión o el archivo no existe y termina la conexión
-4. Manda el hash de la ultima versión del archivo en el servidor
+4. Manda el hash de la versión
 5. Recibe o no un mensaje del cliente indicando si necesita descargar el archivo
 6. Si no se recibe un mensaje o si el mensaje es que no necesita el archivo termina conexión
 7. Manda el tamaño del archivo
@@ -59,14 +59,12 @@ Se puede especificar el archivo del cual se desee listar las versiones, de lo co
 ### Cliente
 1. Manda el nombre/identificador del método ("LIST")
 2. Manda el nombre del archivo o manda 0's
-3. Recibe el tamaño de la lista a recibir
-4. Recibe la lista
+3. Recibe versiones hasta que se indique parar
 5. Cierra conexión
 ### Servidor
 1. Recibe el nombre/identificador del método ("LIST")
-2. Recibe el nombre del archivo o manda 0's
-3. Manda el tamaño de la lista
-4. Manda la lista
+2. Recibe el nombre del archivo o recibe 0's
+3. Manda versiones hasta que se indique parar
 5. Cierra la conexión
 
 
