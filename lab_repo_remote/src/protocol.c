@@ -117,7 +117,7 @@ sres_code client_add(int s, char *filename, char *comment) {
     // 2. Enviar el nombre del archivo, hash y comentario
     puts("Obteniendo hash...");
     get_file_hash(filename, hash);
-    
+
     memset(buf, 0, BUFSZ);
     snprintf(buf, BUFSZ, "%s", filename);
     sent = write(s, buf, BUFSZ);
@@ -130,9 +130,9 @@ sres_code client_add(int s, char *filename, char *comment) {
     snprintf(buf, BUFSZ, "%s", comment);
     sent = write(s, buf, BUFSZ);
     if (sent != BUFSZ) return RSOCKET_ERROR;
-    
+
     /*
-    memset(&request, 0, sizeof(request));    
+    memset(&request, 0, sizeof(request));
     strcpy(request.filename, filename);
     strcpy(request.comment, comment);
     strcpy(request.hash, hash);
@@ -158,13 +158,10 @@ sres_code client_add(int s, char *filename, char *comment) {
     }
 
     // 5. Recibe la respuesta del servidor
-    if (read(s, &rserver, sizeof(sres_code)) == -1) {
-        return RSOCKET_ERROR;
-    }
-
-    if (rserver != RSERVER_OK) {
-        return rserver;
-    }
+    received = read(s, &rserver, sizeof(sres_code));
+    if (received != sizeof(sres_code)) return RSOCKET_ERROR;
+    if (rserver != RSERVER_OK) return rserver;   
+    
 
     return RSERVER_OK;
 }
@@ -319,11 +316,12 @@ int server_add(int s) {
     ssize_t received, sent;  // bytes recibidos y enviados
     char dst_filename[PATH_MAX], buf[BUFSZ];
 
-    // 1. recibe la peticion (Se tubo que partir por problemas de envio de bytes)
+    // 1. recibe la peticion (Se tubo que partir por problemas de envio de
+    // bytes)
     memset(&request, 0, sizeof(request));
     memset(buf, 0, BUFSZ);
     received = read(s, &buf, BUFSZ);
-    if (received != BUFSZ) return -1;    
+    if (received != BUFSZ) return -1;
     strcpy(request.filename, buf);
     memset(buf, 0, BUFSZ);
     received = read(s, &buf, BUFSZ);
@@ -333,7 +331,6 @@ int server_add(int s) {
     received = read(s, &buf, BUFSZ);
     if (received != BUFSZ) return -1;
     strcpy(request.comment, buf);
-    
 
     // 2. comprueba si el archivo ya existe
     puts("Comprobando version...");
@@ -353,18 +350,19 @@ int server_add(int s) {
     // 4. recibe el archivo
     puts("Recibiendo archivo...");
     snprintf(dst_filename, PATH_MAX, "%s/%s", VERSIONS_DIR, request.hash);
-    rserver = receive_file(s, dst_filename);
+    rserver = receive_file(s, dst_filename) == 0 ? RSERVER_OK : RERROR;
 
     // 5. responde indicando si se pudo subir el archivo
     sent = write(s, &rserver, sizeof(sres_code));
     if (sent != sizeof(sres_code)) return -1;
-    if (rserver != RSERVER_OK) return -1;
+    if (rserver == -1) return -1;
 
     // 6. agrega un nuevo registro al archivo versions.db
-    if (create_version(request.filename, request.comment, &v) ==
-        VERSION_ERROR) {
-        return -1;
-    };
+    memset(&v, 0, sizeof(file_version));
+    strcpy(v.filename, request.filename);
+    strcpy(v.comment, request.comment);
+    strcpy(v.hash, request.hash);
+
     if (add_new_version(&v) == VERSION_ERROR) {
         return -1;
     };
