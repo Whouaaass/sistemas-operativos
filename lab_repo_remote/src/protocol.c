@@ -243,8 +243,13 @@ sres_code client_list(int s, char *filename) {
 
     // 4. Recibe versiones hasta que se indique parar
     while (list_size--) {
-        received = recv(s, &v, sizeof(file_version), 0);
-        if (received != sizeof(file_version)) return RSOCKET_ERROR;
+        received = recv(s, v.comment, sizeof(v.comment), 0);
+        if (received != sizeof(v.comment)) return RSOCKET_ERROR;
+        received = recv(s, v.filename, sizeof(v.filename), 0);
+        if (received != sizeof(v.filename)) return RSOCKET_ERROR;
+        received = recv(s, &v.hash, sizeof(v.hash), 0);
+        if (received != sizeof(v.hash)) return RSOCKET_ERROR;
+        
         if (filename != NULL) {
             printf("%i ", ++counter);
             print_version(&v);
@@ -516,10 +521,13 @@ int send_versions(int s, char *filename) {
         readed = fread(&v, sizeof(file_version), 1, fp);
         if (readed == 0) break;
         if (readed == -1) return -1;
-        if ((filename[0] == 0 || EQUALS(filename, v.filename))) {
-            sent = send(s, &v, sizeof(file_version), 0);            
-            if (sent == -1) return -1;
-            if (sent != sizeof(file_version)) return -1;
+        if ((filename[0] == 0 || EQUALS(filename, v.filename))) {            
+            sent = send(s, v.comment, sizeof(v.comment), 0);
+            if (sent != sizeof(v.comment)) return -1;
+            sent = send(s, v.filename, sizeof(v.filename), 0);
+            if (sent != sizeof(v.filename)) return -1;
+            sent = send(s, &v.hash, sizeof(v.hash), 0);
+            if (sent != sizeof(v.hash)) return -1;
         }
     }
 
