@@ -262,6 +262,13 @@ sres_code client_list(int s, char *filename) {
         }
     }
 
+    // Envia confirmación de que ha terminado de ver la lista
+    rclient = CONFIRM;
+    if (send(s, &rclient, sizeof(cres_code), 0) != sizeof(cres_code)) {
+        return -1;
+    }  
+
+
     return RSERVER_OK;
 }
 
@@ -537,6 +544,12 @@ int send_versions(int s, char *filename) {
             if (sent != sizeof(v.hash)) return -1;
         }
     }
+
+
+    // Espera a que el cliente termine de ver la lista
+    if (recv(s, &rclient, sizeof(cres_code), 0) != sizeof(cres_code)) {
+        return -1;
+    }    
 
     fclose(fp);
     return 0;
