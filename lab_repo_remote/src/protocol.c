@@ -7,6 +7,7 @@
  */
 #include "protocol.h"
 
+#include <linux/limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -19,18 +20,18 @@
  * @brief Manda un archivo al socket de destino
  *
  * @param s socket de destino
- * @param filename nombre del archivo local que se enviará
+ * @param filepath ruta donde se encuentra el archivo
  * @return int 0 en caso de exito, -1 en caso de error
  */
-int send_file(int s, char *filename);
+int send_file(int s, char *filepath);
 
 /**
  * @brief Recibe un archivo del socket
  * @param s socket del que se recibe el archivo
- * @param filename nombre del archivo local que se recibirá
+ * @param filepath ruta en donde se guardará el archivo
  * @return int 0 en caso de exito, -1 en caso de error
  */
-int receive_file(int s, char *filename);
+int receive_file(int s, char *filepath);
 
 /**
  * @brief Envia las versiones del repositorio al cliente
@@ -112,6 +113,7 @@ sres_code client_add(int s, char *filename, char *comment) {
     }
 
     // 2. Enviar el nombre del archivo, hash y comentario
+    puts("Obteniendo hash...");
     get_file_hash(filename, hash);
 
     memset(&request, 0, sizeof(request));
@@ -133,6 +135,7 @@ sres_code client_add(int s, char *filename, char *comment) {
     }
 
     // 4. Manda el archivo
+    puts("Enviando archivo...");
     if (send_file(s, filename) == -1) {
         return RERROR;
     }
@@ -195,13 +198,17 @@ sres_code client_get(int s, char *filename, int version) {
     if (write(s, &cres, sizeof(cres_code)) == -1) {
         return RSOCKET_ERROR;
     }
+    if (cres == DENY) { 
+        puts("file up to date");
+        return RFILE_TO_DATE;
+    }
 
     // 6. Recibe el archivo
     rserver = receive_file(s, filename);
     if (rserver != RSERVER_OK) {
         return rserver;
     }
-
+    puts("file getted sucessfully");
     return RSERVER_OK;
 }
 
@@ -220,10 +227,11 @@ sres_code client_list(int s, char *filename) {
     }
 
     memset(req_filename, 0, PATH_MAX);
-    strcpy(req_filename, filename);
+    if (filename != 0)
+        strcpy(req_filename, filename);
 
     // 2. Manda el nombre del archivo
-    if (write(s, filename, PATH_MAX) == -1) {
+    if (write(s, req_filename, PATH_MAX) == -1) {
         return RSOCKET_ERROR;
     }
 
@@ -233,13 +241,13 @@ sres_code client_list(int s, char *filename) {
     }
 
     // 4. Recibe versiones hasta que se indique parar
-    while (1) {
+    while (list_size--) {
         if (read(s, &v, sizeof(file_version)) == -1) {
             return RSOCKET_ERROR;
         }
 
         if (filename != NULL) {
-            printf("%i", ++counter);
+            printf("%i ", ++counter);
             print_version(&v);
         } else {
             print_version(&v);
@@ -278,15 +286,18 @@ int server_add(int s) {
     struct add_request request;
     sres_code rserver;
     file_version v;
+    char dst_filename[PATH_MAX];
+    int aux;
 
     // 1. recibe la peticion
-    if (read(s, &request, sizeof(request)) == -1) {
+    if ((aux = read(s, &request, sizeof(request))) == -1 || aux == 0) {
         return -1;
     }
 
     // 2. comprueba si el archivo ya existe
+    puts("Comprobando version...");
     if (version_exists(request.filename, request.hash) ==
-        VERSION_ALREADY_EXISTS) {
+        VERSION_ALREADY_EXISTS) {        
         rserver = RFILE_TO_DATE;
         return -1;
     } else {
@@ -294,7 +305,7 @@ int server_add(int s) {
     }
 
     // 3. responde indicando si se debe de subir el archivo
-    if (write(s, &rserver, sizeof(sres_code)) == -1) {
+    if ((aux = write(s, &rserver, sizeof(sres_code))) == -1 || aux == 0) {
         return -1;
     }
     if (rserver != RSERVER_OK) {
@@ -302,10 +313,12 @@ int server_add(int s) {
     }
 
     // 4. recibe el archivo
-    rserver = receive_file(s, request.filename);
+    puts("Recibiendo archivo...");
+    snprintf(dst_filename, PATH_MAX, "%s/%s", VERSIONS_DIR, request.hash);
+    rserver = receive_file(s, dst_filename);    
 
     // 5. responde indicando si se pudo subir el archivo
-    if (write(s, &rserver, sizeof(sres_code)) == -1) {
+    if ((aux =write(s, &rserver, sizeof(sres_code))) == -1 || aux == 0) {
         return -1;
     }
     if (rserver != RSERVER_OK) {
@@ -321,6 +334,7 @@ int server_add(int s) {
         return -1;
     };
 
+    puts("Archivo agregado!");
     return 0;
 }
 
@@ -329,6 +343,8 @@ int server_get(int s) {
     sres_code rserver;
     cres_code rclient;
     file_version v;
+    char filepath[PATH_MAX];
+    int aux;
 
     // 1. recibe la peticion
     if (read(s, &request, sizeof(request)) == -1) {
@@ -342,7 +358,7 @@ int server_get(int s) {
     } else {
         rserver = RSERVER_OK;
     }
-    if (write(s, &rserver, sizeof(sres_code)) == -1) {
+    if ((aux = write(s, &rserver, sizeof(sres_code))) == -1 || aux == 0) {
         return -1;
     }
     if (rserver != RSERVER_OK) {
@@ -350,28 +366,34 @@ int server_get(int s) {
     }
 
     // 4. responde con el hash de la versión
-    if (write(s, v.hash, HASH_SIZE) == -1) {
+    if ((aux = write(s, v.hash, HASH_SIZE)) == -1 || aux == 0) {
         return -1;
     }
 
     // 5. recibe confirmación del cliente para descargar el archivo
-    if (read(s, &rclient, sizeof(cres_code)) == -1) {
+    if ((aux = read(s, &rclient, sizeof(cres_code))) == -1 || aux == 0) {
         return -1;
     }
     if (rclient != CONFIRM) {
-        return -1;
+        return 0;
     }
 
     // 6. envia el archivo
-    rserver = send_file(s, request.filename);
+    puts("Enviando archivo...");
+    snprintf(filepath, PATH_MAX, "%s/%s", VERSIONS_DIR, v.hash);    
+    if (send_file(s, filepath) == -1) {
+        return -1;
+    }    
+    printf("Archivo %s enviado!\n", request.filename);
     return 0;
 }
 
 int server_list(int s) {
-    char *filename;
+    char filename[PATH_MAX];
+    int aux;
 
     // 1. recibe el nombre del archivo
-    if (read(s, &filename, PATH_MAX) == -1) {
+    if ((aux = read(s, &filename, PATH_MAX)) == -1 || aux == 0) {
         return -1;
     }
 
@@ -379,6 +401,7 @@ int server_list(int s) {
     if (send_versions(s, filename) == -1) {
         return -1;
     }
+    puts("Lista enviada!");
 
     return 0;
 }
@@ -388,6 +411,7 @@ int send_file(int s, char *filename) {
     char buf[BUFSZ];
     ssize_t nread;
     content_size file_size;
+    int aux;
 
     // 0. Consulta el tamaño del archivo
     struct stat file_stat;
@@ -401,7 +425,7 @@ int send_file(int s, char *filename) {
     file_size = (content_size)file_stat.st_size;
 
     // 1. Envia el tamaño del archivo
-    if (write(s, &file_size, sizeof(content_size)) == -1) {
+    if ((aux = write(s, &file_size, sizeof(content_size))) == -1 || aux == 0) {
         return -1;
     }
 
@@ -413,6 +437,7 @@ int send_file(int s, char *filename) {
 
     // 3. Envia el contenido del archivo
     while (nread = fread(buf, sizeof(char), BUFSZ, fp), nread > 0) {
+        file_size -= nread;
         if (write(s, buf, nread) == -1) {
             fclose(fp);
             return -1;
@@ -422,28 +447,34 @@ int send_file(int s, char *filename) {
     return 0;
 }
 
-int receive_file(int s, char *filename) {
+int receive_file(int s, char *endpath) {
     FILE *fp;
     content_size file_size;
     char buf[BUFSZ];
-    ssize_t nread;
+    size_t nwrite;
+    int aux;
 
     // 0. Recibe el tamaño del archivo
-    if (read(s, &file_size, sizeof(content_size)) == -1) {
+    if ((aux = read(s, &file_size, sizeof(content_size))) == -1 || aux == 0) {
         return -1;
     }
 
     // 1. Abre el archivo
-    if ((fp = fopen(filename, "w")) == NULL) {
+    if ((fp = fopen(endpath, "wb")) == NULL) {
         perror("Error Abriendo el archivo");
         return -1;
     }
 
     // 2. Recibe el contenido del archivo
-    while (nread = fread(buf, sizeof(char), BUFSZ, fp), nread > 0) {
-        if (write(s, buf, nread) == -1) {
-            fclose(fp);
+    while (aux = read(s, buf, BUFSZ), aux != -1 && aux != 0 && file_size > 0) {        
+        file_size -= aux;        
+        if (nwrite = fwrite(buf, sizeof(char), aux, fp), nwrite != aux) {
             return -1;
+        }     
+        if (file_size < BUFSZ) {
+            read(s, buf, file_size);
+            fwrite(buf, sizeof(char), file_size, fp);
+            break;
         }
     }
     fclose(fp);
@@ -461,7 +492,8 @@ int send_versions(int s, char *filename) {
         return -1;
     }
     while ((readed = fread(&v, sizeof(file_version), 1, fp)) == 1) {
-        if (EQUALS(filename, v.filename)) counter++;
+        if (filename[0] == 0) counter++;
+        else if (EQUALS(filename, v.filename)) counter++;
     }
     fclose(fp);
     if (write(s, &counter, sizeof(int)) == -1) {
@@ -476,11 +508,11 @@ int send_versions(int s, char *filename) {
         return -1;
     }
     while ((readed = fread(&v, sizeof(file_version), 1, fp)) == 1) {
-        if (EQUALS(filename, v.filename) &&
+        if ((filename[0] == 0 || EQUALS(filename, v.filename)) &&
             write(s, &v, sizeof(file_version)) == -1) {
             fclose(fp);
             return -1;
-        }
+        }        
     }
     fclose(fp);
 

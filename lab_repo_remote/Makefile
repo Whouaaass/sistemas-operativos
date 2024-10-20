@@ -20,7 +20,7 @@ all: $(OBJ_FILES)
 # Rule to compile .c files to .o files
 $(OUT_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(OUT_DIR)      # Create output directory if it doesn't exist
-	$(CC) -c $< -o $@
+	$(CC) -g -c $< -o $@
 
 # Clean up
 clean:

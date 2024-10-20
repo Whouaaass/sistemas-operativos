@@ -44,7 +44,7 @@ void handle_signal(int sig);
 
 int main(int argc, char *argv[]) {
     int s;           // socket con el servidor
-    int rcode;       // codigo de retorno
+    int rcode = -1;  // codigo de retorno
     char *filename;  // nombre del archivo
 
     // 1. instalar los manejadores de SIGINT, SIGTERM
@@ -53,31 +53,30 @@ int main(int argc, char *argv[]) {
 
     // 2. Maneja los argumentos
     if (argc == 4 && EQUALS(argv[1], "add")) {
-        s = make_connection();
-        filename = basename(argv[2]);
-        rcode = client_list(s, filename);
-        if (rcode != RSERVER_OK) {
-            perror("Error listing files");
+        if ((s = make_connection()) == -1) {
+            perror("Error connecting to server");
             exit(EXIT_FAILURE);
         }
+        filename = basename(argv[2]);
+        rcode = client_add(s, filename, argv[3]);        
+
     } else if (argc == 2 && EQUALS(argv[1], "list")) {
         // Listar todos los archivos almacenados en el repositorio
-        s = make_connection();
-        rcode = client_list(s, NULL);
-        if (rcode != RSERVER_OK) {
-            perror("Error listing files");
+        if ((s = make_connection()) == -1) {
+            perror("Error connecting to server");
             exit(EXIT_FAILURE);
         }
+        rcode = client_list(s, NULL);
 
     } else if (argc == 3 && EQUALS(argv[1], "list")) {
         // Listar el archivo solicitado
-        s = make_connection();
-        filename = basename(argv[2]);
-        rcode = client_list(s, filename);
-        if (rcode != RSERVER_OK) {
-            perror("Error listing files");
+        if ((s = make_connection()) == -1) {
+            perror("Error connecting to server");
             exit(EXIT_FAILURE);
         }
+        filename = basename(argv[2]);
+        rcode = client_list(s, filename);
+
     } else if (argc == 4 && EQUALS(argv[1], "get")) {
         int v_number = atoi(argv[2]);
         filename = basename(argv[3]);
@@ -86,12 +85,15 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
         rcode = client_get(s, filename, v_number);
-        if (rcode != RSERVER_OK) {
-            perror("Error getting file");
-            exit(EXIT_FAILURE);
-        }
+
     } else {
         usage();
+    }
+
+    if (rcode == RSOCKET_ERROR) {
+        perror("Error in server communication");
+    } else if (rcode == RERROR) {
+        perror("Error in server operation");
     }
 
     // 3. cerrar la conexión con el servidor - close

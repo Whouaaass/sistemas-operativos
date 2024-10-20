@@ -52,6 +52,20 @@ int main(const int argc, const char *argv[]) {
     // Argumentos de consola
     int port = atoi(argv[1]);
 
+    struct stat vfile_stat;
+
+    // Crear el directorio ".versions/" si no existe
+#ifdef __linux__
+    mkdir(VERSIONS_DIR, 0755);
+#elif _WIN32
+    mkdir(VERSIONS_DIR);
+#endif
+
+    // Crea el archivo .versions/versions.db si no existe
+    if (stat(VERSIONS_DB_PATH, &vfile_stat) != 0) {
+        creat(VERSIONS_DB_PATH, 0755);
+    }
+
     int c;  // socket del cliente
     uint clilen;
     char buf[BUFSZ];  // buffer de la comunicación continua
