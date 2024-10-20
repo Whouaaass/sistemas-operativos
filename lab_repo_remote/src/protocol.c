@@ -219,6 +219,7 @@ sres_code client_list(int s, char *filename) {
     cres_code rclient;
     file_version v;
     ssize_t received;
+    ssize_t to_receive;
     int list_size;
     char req_filename[PATH_MAX];
     int counter = 0;
@@ -245,7 +246,13 @@ sres_code client_list(int s, char *filename) {
     while (list_size--) {
         received = recv(s, v.comment, sizeof(v.comment), 0);
         if (received != sizeof(v.comment)) return RSOCKET_ERROR;
-        received = recv(s, v.filename, sizeof(v.filename), 0);
+        to_receive = sizeof(v.filename);
+        while (to_receive > 0) {
+            received = recv(s, v.filename + (sizeof(v.filename) - to_receive), to_receive, 0);
+            if (received == -1) return RSOCKET_ERROR;
+            to_receive -= received;
+        }
+        
         if (received != sizeof(v.filename)) return RSOCKET_ERROR;
         received = recv(s, &v.hash, sizeof(v.hash), 0);
         if (received != sizeof(v.hash)) return RSOCKET_ERROR;
@@ -533,4 +540,8 @@ int send_versions(int s, char *filename) {
 
     fclose(fp);
     return 0;
+}
+
+void version_to_stream() {
+    
 }
