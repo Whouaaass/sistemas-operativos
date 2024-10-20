@@ -104,7 +104,8 @@ int receive_greeting(int s, const int greeter) {
 sres_code client_add(int s, char *filename, char *comment) {
     const method_code method = ADD;
     struct add_request request;
-    char hash[HASH_SIZE];
+    ssize_t received, sent;  // bytes recibidos y enviados
+    char hash[HASH_SIZE], buf[BUFSZ];
     sres_code rserver;
     struct stat file_stat;
 
@@ -116,8 +117,22 @@ sres_code client_add(int s, char *filename, char *comment) {
     // 2. Enviar el nombre del archivo, hash y comentario
     puts("Obteniendo hash...");
     get_file_hash(filename, hash);
-
-    memset(&request, 0, sizeof(request));
+    
+    memset(buf, 0, BUFSZ);
+    snprintf(buf, BUFSZ, "%s", filename);
+    sent = write(s, buf, BUFSZ);
+    if (sent != BUFSZ) return RSOCKET_ERROR;
+    memset(buf, 0, BUFSZ);
+    snprintf(buf, BUFSZ, "%s", hash);
+    sent = write(s, buf, BUFSZ);
+    if (sent != BUFSZ) return RSOCKET_ERROR;
+    memset(buf, 0, BUFSZ);
+    snprintf(buf, BUFSZ, "%s", comment);
+    sent = write(s, buf, BUFSZ);
+    if (sent != BUFSZ) return RSOCKET_ERROR;
+    
+    /*
+    memset(&request, 0, sizeof(request));    
     strcpy(request.filename, filename);
     strcpy(request.comment, comment);
     strcpy(request.hash, hash);
@@ -125,6 +140,7 @@ sres_code client_add(int s, char *filename, char *comment) {
     if (write(s, &request, sizeof(request)) == -1) {
         return RSOCKET_ERROR;
     }
+    */
 
     // 3. Recibir una respuesta del servidor (indica si se puede subir el
     // archivo)
@@ -231,17 +247,17 @@ sres_code client_list(int s, char *filename) {
         return RSOCKET_ERROR;
     }
 
-    memset(buf, 0, BUFSZ);     
+    memset(buf, 0, BUFSZ);
     if (filename != 0) snprintf(buf, BUFSZ, "%s", filename);
 
     // 2. Manda el nombre del archivo
-    if (write(s, buf, BUFSZ) != BUFSZ) { 
+    if (write(s, buf, BUFSZ) != BUFSZ) {
         return RSOCKET_ERROR;
     }
 
     // 3. Recibe el tamaño de la lista a recibir
     received = recv(s, &list_size, sizeof(int), 0);
-    if (received != sizeof(int)) return RSOCKET_ERROR;    
+    if (received != sizeof(int)) return RSOCKET_ERROR;
 
     // 4. Recibe versiones hasta que se indique parar
     while (list_size--) {
@@ -253,7 +269,7 @@ sres_code client_list(int s, char *filename) {
         strcpy(v.filename, buf);
         received = recv(s, &v.hash, sizeof(v.hash), 0);
         if (received != sizeof(v.hash)) return RSOCKET_ERROR;
-        
+
         if (filename != NULL) {
             printf("%i ", ++counter);
             print_version(&v);
@@ -266,8 +282,7 @@ sres_code client_list(int s, char *filename) {
     rclient = CONFIRM;
     if (send(s, &rclient, sizeof(cres_code), 0) != sizeof(cres_code)) {
         return -1;
-    }  
-
+    }
 
     return RSERVER_OK;
 }
@@ -301,13 +316,24 @@ int server_add(int s) {
     struct add_request request;
     sres_code rserver;
     file_version v;
-    char dst_filename[PATH_MAX];
-    int aux;
+    ssize_t received, sent;  // bytes recibidos y enviados
+    char dst_filename[PATH_MAX], buf[BUFSZ];
 
-    // 1. recibe la peticion
-    if ((aux = read(s, &request, sizeof(request))) == -1 || aux == 0) {
-        return -1;
-    }
+    // 1. recibe la peticion (Se tubo que partir por problemas de envio de bytes)
+    memset(&request, 0, sizeof(request));
+    memset(buf, 0, BUFSZ);
+    received = read(s, &buf, BUFSZ);
+    if (received != BUFSZ) return -1;    
+    strcpy(request.filename, buf);
+    memset(buf, 0, BUFSZ);
+    received = read(s, &buf, BUFSZ);
+    if (received != BUFSZ) return -1;
+    strcpy(request.hash, buf);
+    memset(buf, 0, BUFSZ);
+    received = read(s, &buf, BUFSZ);
+    if (received != BUFSZ) return -1;
+    strcpy(request.comment, buf);
+    
 
     // 2. comprueba si el archivo ya existe
     puts("Comprobando version...");
@@ -320,12 +346,9 @@ int server_add(int s) {
     }
 
     // 3. responde indicando si se debe de subir el archivo
-    if ((aux = write(s, &rserver, sizeof(sres_code))) == -1 || aux == 0) {
-        return -1;
-    }
-    if (rserver != RSERVER_OK) {
-        return -1;
-    }
+    sent = write(s, &rserver, sizeof(sres_code));
+    if (sent != sizeof(sres_code)) return -1;
+    if (rserver != RSERVER_OK) return -1;
 
     // 4. recibe el archivo
     puts("Recibiendo archivo...");
@@ -333,12 +356,9 @@ int server_add(int s) {
     rserver = receive_file(s, dst_filename);
 
     // 5. responde indicando si se pudo subir el archivo
-    if ((aux = write(s, &rserver, sizeof(sres_code))) == -1 || aux == 0) {
-        return -1;
-    }
-    if (rserver != RSERVER_OK) {
-        return -1;
-    }
+    sent = write(s, &rserver, sizeof(sres_code));
+    if (sent != sizeof(sres_code)) return -1;
+    if (rserver != RSERVER_OK) return -1;
 
     // 6. agrega un nuevo registro al archivo versions.db
     if (create_version(request.filename, request.comment, &v) ==
@@ -357,14 +377,16 @@ int server_get(int s) {
     struct get_request request;
     sres_code rserver;
     cres_code rclient;
+
+    ssize_t received;
+    ssize_t sent;
     file_version v;
     char filepath[PATH_MAX];
     int aux;
 
     // 1. recibe la peticion
-    if (read(s, &request, sizeof(request)) == -1) {
-        return -1;
-    }
+    received = read(s, &request, sizeof(request));
+    if (received != sizeof(request)) return -1;
 
     // 2. responde indicando si el archivo existe
     if (get_version(&v, request.filename, request.version) ==
@@ -373,32 +395,24 @@ int server_get(int s) {
     } else {
         rserver = RSERVER_OK;
     }
-    if ((aux = write(s, &rserver, sizeof(sres_code))) == -1 || aux == 0) {
-        return -1;
-    }
-    if (rserver != RSERVER_OK) {
-        return -1;
-    }
+    sent = write(s, &request, sizeof(request));
+    if (sent != sizeof(request)) return -1;
+    if (rserver != RSERVER_OK) return -1;
 
     // 4. responde con el hash de la versión
-    if ((aux = write(s, v.hash, HASH_SIZE)) == -1 || aux == 0) {
-        return -1;
-    }
+    sent = write(s, v.hash, HASH_SIZE);
+    if (sent != HASH_SIZE) return -1;
 
     // 5. recibe confirmación del cliente para descargar el archivo
-    if ((aux = read(s, &rclient, sizeof(cres_code))) == -1 || aux == 0) {
-        return -1;
-    }
-    if (rclient != CONFIRM) {
-        return 0;
-    }
+    received = read(s, &rclient, sizeof(cres_code));
+    if (received != sizeof(cres_code)) return -1;
+    if (rclient != CONFIRM) return 0;
 
     // 6. envia el archivo
     puts("Enviando archivo...");
     snprintf(filepath, PATH_MAX, "%s/%s", VERSIONS_DIR, v.hash);
-    if (send_file(s, filepath) == -1) {
-        return -1;
-    }
+    if (send_file(s, filepath) == -1) return -1;
+
     printf("Archivo %s enviado!\n", request.filename);
     return 0;
 }
@@ -456,17 +470,16 @@ int send_file(int s, char *filename) {
     // 3. Envia el contenido del archivo
     while (file_size -= nread) {
         nread = fread(buf, sizeof(char), BUFSZ, fp);
-        if (nread == 0 || nread == -1) break;        
-        file_size -= nread;        
+        if (nread == 0 || nread == -1) break;
+        file_size -= nread;
         sent = send(s, buf, nread, 0);
-        if (sent == -1 || sent != nread) break;        
+        if (sent == -1 || sent != nread) break;
     }
 
     fclose(fp);
     if (file_size != 0) return -1;
     return 0;
-}    
-    
+}
 
 int receive_file(int s, char *endpath) {
     FILE *fp;
@@ -490,13 +503,13 @@ int receive_file(int s, char *endpath) {
     while (file_size > 0) {
         int rchunk_size = file_size < 0 ? BUFSZ : file_size;
         memset(buf, 0, BUFSZ);
-        received = recv(s, buf, rchunk_size, 0);        
+        received = recv(s, buf, rchunk_size, 0);
         if (received == -1) break;
         file_size -= received;
         nwrite = fwrite(buf, sizeof(char), received, fp);
         if (nwrite != received) break;
-    }    
-    
+    }
+
     fclose(fp);
     if (file_size != 0) return -1;
     return 0;
@@ -515,7 +528,7 @@ int send_versions(int s, char *filename) {
     // Envia el tamaño de la lista
     fp = fopen(VERSIONS_DIR "/" VERSIONS_DB, "r");
     if (fp == NULL) return -1;
-    
+
     while ((readed = fread(&v, sizeof(file_version), 1, fp)) == 1) {
         if (filename[0] == 0)
             counter++;
@@ -523,7 +536,7 @@ int send_versions(int s, char *filename) {
             counter++;
     }
     fclose(fp);
-    if (write(s, &counter, sizeof(int)) == -1) return -1;    
+    if (write(s, &counter, sizeof(int)) == -1) return -1;
 
     if (counter == 0) return 0;
 
@@ -535,28 +548,25 @@ int send_versions(int s, char *filename) {
         readed = fread(&v, sizeof(file_version), 1, fp);
         if (readed == 0) break;
         if (readed == -1) return -1;
-        if ((filename[0] == 0 || EQUALS(filename, v.filename))) {            
+        if ((filename[0] == 0 || EQUALS(filename, v.filename))) {
             sent = send(s, v.comment, sizeof(v.comment), 0);
-            if (sent != sizeof(v.comment)) return -1;                                                
+            if (sent != sizeof(v.comment)) return -1;
             memset(buf, 0, BUFSZ);
             strcpy(buf, v.filename);
-            sent = send(s, buf, BUFSZ, 0);            
+            sent = send(s, buf, BUFSZ, 0);
             if (sent != BUFSZ) return -1;
             sent = send(s, &v.hash, sizeof(v.hash), 0);
             if (sent != sizeof(v.hash)) return -1;
         }
     }
 
-
     // Espera a que el cliente termine de ver la lista
     if (recv(s, &rclient, sizeof(cres_code), 0) != sizeof(cres_code)) {
         return -1;
-    }    
+    }
 
     fclose(fp);
     return 0;
 }
 
-void version_to_stream() {
-    
-}
+void version_to_stream() {}
