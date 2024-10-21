@@ -120,9 +120,7 @@ int main(const int argc, const char *argv[]) {
             break;
         }
     }
-
-    // 6. cerrar el socket del cliente c
-    close(c);
+    
     // 7. cerrar el socket del servidor lserver_socket
     close(lserver_socket);
     exit(EXIT_SUCCESS);
@@ -147,6 +145,7 @@ void *handle_client(void *arg) {
     int c;  // socket del cliente
     char buffer[BUFSZ];
     int readed;
+    int rcode;
 
     c = *(int *)arg;
 
@@ -156,9 +155,9 @@ void *handle_client(void *arg) {
         return NULL;
     }
 
-    if (server_receive_request(c) == -1) {
-        perror("Error");
-    }
+    while (rcode = server_receive_request(c), rcode == 1);
+
+    printf("Client %d disconnected\n", c);
 
     close(c);
 

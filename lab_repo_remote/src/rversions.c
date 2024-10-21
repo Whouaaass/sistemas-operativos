@@ -7,6 +7,7 @@
  */
 #include <arpa/inet.h>
 #include <libgen.h>
+#include <linux/limits.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <pthread.h>
@@ -16,21 +17,29 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "protocol.h"
 #include "versions.h"
 
-// TODO: search a method to save this on a file or something like that
-#define ip_addr "192.168.100.147"
-#define port 1234
+int server_socket;  // socket con el servidor
 
 /**
  * @brief Crea la conección con el servidor
  *
+ * @param ip dirección IPv4 del servidor
+ * @param port puerto del servidor
  * @return int the socket con el servidor, -1 para errores
  */
-int make_connection();
+int make_connection(char *ip, int port);
+
+/**
+ * @brief Maneja los comandos del programa
+ *
+ * @param s socket con el servidor
+ */
+void manage_commands(int s);
 
 /**
  * @brief Imprime el mensaje de ayuda
@@ -38,91 +47,86 @@ int make_connection();
 void usage();
 
 /**
+ * @brief Imprime el mensaje de ayuda para los comandos internos
+ *
+ */
+void inner_usage();
+
+/**
+ * @brief 
+ * 
+ */
+void print_serror_message(sres_code code);
+
+/**
  * @brief El manejador de señales
+ * @param sig numero de señal
  */
 void handle_signal(int sig);
 
+/**
+ * @brief Funcion usada para terminar el programa
+ * @param exit_code codigo de salida del programa
+ */
+void terminate(int exit_code);
+
 int main(int argc, char *argv[]) {
-    int s;           // socket con el servidor
     int rcode = -1;  // codigo de retorno
     char *filename;  // nombre del archivo
+
+    int arg_port;  // puerto del servidor
+    char *arg_ip;  // ip del servidor
 
     // 1. instalar los manejadores de SIGINT, SIGTERM
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
 
-    // 2. Maneja los argumentos
-    if (argc == 4 && EQUALS(argv[1], "add")) {
-        if ((s = make_connection()) == -1) {
+    // 2. maneja los argumentos del programa
+    if (argc == 3) {
+        arg_port = atoi(argv[2]);
+        arg_ip = argv[1];
+        if (arg_port < 0 || arg_port > 65535) {
+            printf("El puerto debe estar entre 0 y 65535\n");
+            exit(EXIT_FAILURE);
+        }
+
+        server_socket = make_connection(arg_ip, arg_port);
+        if (server_socket == -1) {
             perror("Error connecting to server");
             exit(EXIT_FAILURE);
         }
-        filename = basename(argv[2]);
-        rcode = client_add(s, filename, argv[3]);        
-
-    } else if (argc == 2 && EQUALS(argv[1], "list")) {
-        // Listar todos los archivos almacenados en el repositorio
-        if ((s = make_connection()) == -1) {
-            perror("Error connecting to server");
-            exit(EXIT_FAILURE);
-        }
-        rcode = client_list(s, NULL);
-
-    } else if (argc == 3 && EQUALS(argv[1], "list")) {
-        // Listar el archivo solicitado
-        if ((s = make_connection()) == -1) {
-            perror("Error connecting to server");
-            exit(EXIT_FAILURE);
-        }
-        filename = basename(argv[2]);
-        rcode = client_list(s, filename);
-
-    } else if (argc == 4 && EQUALS(argv[1], "get")) {
-        int v_number = atoi(argv[2]);
-        filename = basename(argv[3]);
-        if ((s = make_connection()) == -1) {
-            perror("Error connecting to server");
-            exit(EXIT_FAILURE);
-        }
-        rcode = client_get(s, filename, v_number);
-
+        manage_commands(server_socket);
+    } else if (argc == 2 &&
+               (EQUALS(argv[1], "-h") || EQUALS(argv[1], "--help"))) {
+        usage();
+        exit(EXIT_SUCCESS);
     } else {
         usage();
+        exit(EXIT_FAILURE);
     }
 
-    if (rcode == RSOCKET_ERROR) {
-        perror("Error in server communication");
-    } else if (rcode == RERROR) {
-        perror("Error in server operation");
-    }
-
-    // 3. cerrar la conexión con el servidor - close
-    close(s);
-    exit(EXIT_SUCCESS);
+    terminate(EXIT_SUCCESS);
 }
 
-int make_connection() {
+int make_connection(char *ip, int port) {
     int s;  // socket del servidor
     struct sockaddr_in addr;
 
     // 1. obtener un conector - socket
-    if ((s = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        return -1;
-    }
+    s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s == -1) return -1;
 
     // 2. conectarse a una dirección (IP, puerto) - connect ~ bind
     memset(&addr, 0, sizeof(struct sockaddr_in));
-
     addr.sin_family = AF_INET;
-    if (inet_aton(ip_addr, &addr.sin_addr) == 0) {
-        return -1;
-    }
     addr.sin_port = htons(port);
+    if (inet_aton(ip, &addr.sin_addr) == 0) return 1;
 
     puts("Connecting to server...");
     if (connect(s, (struct sockaddr *)&addr, sizeof(struct sockaddr_in))) {
         return -1;
     }
+    printf("Connected to %s!\n", ip);
 
     // 3. Hacer el protocolo del saludo
     if (send_greeting(s, 1) == -1) {
@@ -135,15 +139,112 @@ int make_connection() {
     return s;
 }
 
-void usage() { puts("TODO: make usage"); }
+void manage_commands(int s) {
+    char stdin_buf[BUFSIZ];    
+    inner_usage();
+    int readed;
+
+    while (1) {
+        char filename[PATH_MAX];
+        char message[BUFSZ];        
+        int version;
+        int matches;
+        int rcode;
+
+        char arg1[BUFSZ], arg2[BUFSZ];
+        char method[10];
+
+        printf("rversions> ");
+        memset(stdin_buf, 0, BUFSIZ);           
+        if (fgets(stdin_buf, BUFSIZ, stdin) == NULL) break;        
+        readed = strlen(stdin_buf);
+        if (stdin_buf[readed - 1] == '\n') stdin_buf[readed - 1] = 0;
+        matches = sscanf(stdin_buf, "%s %s %s", method, arg1, arg2);
+        
+        printf("matches: %d\n", matches);
+        switch (matches) {
+            case 3: printf("arg2: %s\n", arg2);
+            case 2: printf("arg1: %s\n", arg1);
+            case 1: printf("method: %s\n", method);        
+        }
+
+        if (EQUALS(method, "exit")) {
+            terminate(EXIT_SUCCESS);            
+        } else if (EQUALS(method, "list") && matches == 1) {                        
+            rcode = client_list(s, NULL);
+        } else if (EQUALS(method, "list") && matches == 2) {            
+            puts("list");
+            rcode = client_list(s, arg1);
+        } else if (EQUALS(method, "add") && matches == 3) {            
+            rcode = client_add(s, arg1, arg2);
+        } else if (EQUALS(method, "get") && matches == 3) {
+            version = atoi(arg1);
+            rcode = client_get(s, arg2, version);
+        } else if (EQUALS(method, "help")) {
+            inner_usage();
+        } else {
+            printf("Invalid command\n");
+        }
+
+        if (rcode != RSERVER_OK) print_serror_message(rcode);    }
+}
+
+void usage() { puts("usage: rversions PORT IP"); }
+
+void inner_usage() {
+    puts(
+        "commands:\n"
+        "\tlist [filename]       Lista los archivos almacenados en el "
+        "repositorio\n"
+        "\tadd filename comment  Añade un archivo con el comentario a un "
+        "servidor remoto\n"
+        "\tget version filename  Obtiene el archivo especificado\n"
+        "\thelp                  Imprime la ayuda\n"
+        "\texit                  Termina el programa");
+}
+
+void print_serror_message(sres_code code) {
+    switch (code) {
+        case RFILE_TO_DATE:
+            puts("El archivo ya está actualizado");
+            break;
+        case RFILE_OUTDATED:
+            puts("El archivo no esta actualizado");
+            break;
+        case RFILE_NOT_FOUND:
+            puts("El archivo no existe");
+            break;
+        case RVERSION_NOT_FOUND:
+            puts("La versión solicitada no existe");
+            break;
+        case RSOCKET_ERROR:
+            puts("Error de socket (En escritura o lectura)");
+            break;
+        case RILLEGAL_METHOD:
+            puts("Método no permitido");
+            break;
+        case RERROR:
+            perror("Error no especificado");
+            break;
+        default:
+            perror("Error desconocido");
+            break;
+    }
+}
 
 void handle_signal(int sig) {
     if (sig == SIGTERM) {
         puts("Closed by terminal signal");
     }
     if (sig == SIGINT) {
+        printf("\n");
         puts("Closed by keyboard");
     }
-    puts("Closing...");
-    exit(EXIT_FAILURE);
+    terminate(EXIT_FAILURE);
+}
+
+void terminate(int exit_code) {
+    puts("Ending program...");
+    close(server_socket);
+    exit(exit_code);
 }

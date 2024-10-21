@@ -21,7 +21,7 @@
 /**
  * Codigo de los métodos
  */
-typedef enum { GET, ADD, LIST } method_code;
+typedef enum { GET, ADD, LIST, EXIT } method_code;
 
 /**
  * Codigo de las respuestas del servidor
@@ -109,8 +109,8 @@ sres_code client_list(int s, char* filename);
  * @brief Gestiona las peticiones al servidor
  * 
  * @param s socket del cliente
- * @return int 0 para exito, -1 para error
+ * @return int 0 para para salir, 1 para continuar, -1 para error
  */
-sres_code server_receive_request(int s);
+int server_receive_request(int s);
 
 #endif

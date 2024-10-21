@@ -134,12 +134,9 @@ sres_code client_add(int s, char *filename, char *comment) {
 
     // 3. Recibir una respuesta del servidor (indica si se puede subir el
     // archivo)
-    if (read(s, &rserver, sizeof(sres_code)) == -1) {
-        return RSOCKET_ERROR;
-    }
-    if (rserver != RSERVER_OK) {
-        return rserver;
-    }
+    received = read(s, &rserver, sizeof(sres_code));
+    if (received != sizeof(sres_code)) return RSOCKET_ERROR;
+    if (rserver != RSERVER_OK) return rserver;
 
     // 4. Manda el archivo
     puts("Enviando archivo...");
@@ -189,7 +186,7 @@ sres_code client_get(int s, char *filename, int version) {
     if (received != HASH_SIZE) return RSOCKET_ERROR;
     puts("hash recibido");
 
-    // 5. responde si el archivo local ya esta actualizado    
+    // 5. responde si el archivo local ya esta actualizado
     cres = get_file_hash(filename, local_hash) != NULL &&
                    EQUALS(server_hash, local_hash)
                ? DENY
@@ -243,6 +240,7 @@ sres_code client_list(int s, char *filename) {
 
     // 4. Recibe versiones hasta que se indique parar
     while (list_size--) {
+        memset(&v, 0, sizeof(file_version));
         received = recv(s, v.comment, sizeof(v.comment), 0);
         if (received != sizeof(v.comment)) return RSOCKET_ERROR;
         memset(buf, 0, BUFSZ);
@@ -260,18 +258,13 @@ sres_code client_list(int s, char *filename) {
         }
     }
 
-    // Envia confirmación de que ha terminado de ver la lista
-    rclient = CONFIRM;
-    if (send(s, &rclient, sizeof(cres_code), 0) != sizeof(cres_code)) {
-        return -1;
-    }
-
     return RSERVER_OK;
 }
 
-sres_code server_receive_request(int s) {
+int server_receive_request(int s) {
     method_code method;
     int readed;
+    sres_code rcode;
 
     // 1. recibe el método a ejecutar
     readed = read(s, &method, sizeof(method_code));
@@ -280,14 +273,25 @@ sres_code server_receive_request(int s) {
     // 2. ejecuta el método
     switch (method) {
         case ADD:
-            return server_add(s);
+            printf("Cliente %d> ADD\n", s);
+            rcode = server_add(s);
+            break;
         case GET:
-            return server_get(s);
+            printf("Cliente %d> GET\n", s);
+            rcode = server_get(s);
+            break;
         case LIST:
-            return server_list(s);
+            printf("Cliente %d> LIST\n", s);
+            rcode = server_list(s);
+            break;
+        case EXIT:
+            printf("Cliente %d> EXIT\n", s);
+            return 0;  // 0 es salir
         default:
             return RILLEGAL_METHOD;
     }
+    if (rcode != RSERVER_OK) return -1;  // -1 es error
+    return 1;                            // 1 es continuar
 }
 
 int server_add(int s) {
@@ -315,18 +319,15 @@ int server_add(int s) {
 
     // 2. comprueba si el archivo ya existe
     puts("Comprobando version...");
-    if (version_exists(request.filename, request.hash) ==
-        VERSION_ALREADY_EXISTS) {
-        rserver = RFILE_TO_DATE;
-        return -1;
-    } else {
-        rserver = RSERVER_OK;
-    }
+    rserver =
+        version_exists(request.filename, request.hash) == VERSION_ALREADY_EXISTS
+            ? RFILE_TO_DATE
+            : RSERVER_OK;
 
     // 3. responde indicando si se debe de subir el archivo
     sent = write(s, &rserver, sizeof(sres_code));
     if (sent != sizeof(sres_code)) return -1;
-    if (rserver != RSERVER_OK) return -1;
+    if (rserver == RFILE_TO_DATE) return 0;
 
     // 4. recibe el archivo
     puts("Recibiendo archivo...");
@@ -349,7 +350,7 @@ int server_add(int s) {
     };
 
     puts("Archivo agregado!");
-    return 0;
+    return RSERVER_OK;
 }
 
 int server_get(int s) {
@@ -379,7 +380,7 @@ int server_get(int s) {
             : RSERVER_OK;
     sent = write(s, &rserver, sizeof(sres_code));
     if (sent != sizeof(sres_code)) return -1;
-    if (rserver != RSERVER_OK) return -1;
+    if (rserver == RFILE_NOT_FOUND) return 0;
 
     // 4. responde con el hash de la versión
     sent = write(s, v.hash, HASH_SIZE);
@@ -396,7 +397,7 @@ int server_get(int s) {
     if (send_file(s, filepath) == -1) return -1;
 
     printf("Archivo %s enviado!\n", request.filename);
-    return 0;
+    return RSERVER_OK;
 }
 
 int server_list(int s) {
@@ -416,7 +417,7 @@ int server_list(int s) {
     }
     puts("Lista enviada!");
 
-    return 0;
+    return RSERVER_OK;
 }
 
 int send_file(int s, char *filename) {
@@ -494,7 +495,7 @@ int send_versions(int s, char *filename) {
     file_version v;
     cres_code rclient;
     char buf[BUFSZ];
-    int counter = 0;
+    int counter;
     size_t readed;
     ssize_t sent;
     int aux;
@@ -503,14 +504,12 @@ int send_versions(int s, char *filename) {
     fp = fopen(VERSIONS_DIR "/" VERSIONS_DB, "r");
     if (fp == NULL) return -1;
 
+    counter = 0;
     while ((readed = fread(&v, sizeof(file_version), 1, fp)) == 1) {
-        if (filename[0] == 0)
-            counter++;
-        else if (EQUALS(filename, v.filename))
-            counter++;
+        if (filename[0] == 0 || EQUALS(filename, v.filename)) counter++;
     }
     fclose(fp);
-    if (write(s, &counter, sizeof(int)) == -1) return -1;
+    if (write(s, &counter, sizeof(int)) != sizeof(int)) return -1;
 
     if (counter == 0) return 0;
 
@@ -518,10 +517,10 @@ int send_versions(int s, char *filename) {
     fp = fopen(VERSIONS_DIR "/" VERSIONS_DB, "r");
     if (fp == NULL) return -1;
 
-    while (counter--) {
+    while (counter) {
         readed = fread(&v, sizeof(file_version), 1, fp);
-        if (readed == 0) break;
-        if (readed == -1) break;
+        if (readed == 0 || readed == -1) break;
+
         if ((filename[0] == 0 || EQUALS(filename, v.filename))) {
             sent = send(s, v.comment, sizeof(v.comment), 0);
             if (sent != sizeof(v.comment)) break;
@@ -531,21 +530,14 @@ int send_versions(int s, char *filename) {
             if (sent != BUFSZ) break;
             sent = send(s, &v.hash, sizeof(v.hash), 0);
             if (sent != sizeof(v.hash)) break;
+            counter--;
         }
     }
+    fclose(fp);
 
     if (counter > 0) {
-        printf("sent: %ld\nreaded %ld\n", sent, readed);
-        fclose(fp);
         return -1;
     }
-
-    // Espera a que el cliente termine de ver la lista
-    if (recv(s, &rclient, sizeof(cres_code), 0) != sizeof(cres_code)) {
-        return -1;
-    }
-
-    fclose(fp);
     return 0;
 }
 
