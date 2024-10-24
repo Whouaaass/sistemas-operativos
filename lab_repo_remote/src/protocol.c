@@ -67,7 +67,52 @@ int server_get(int s);
  */
 int server_list(int s);
 
-int save_receive_data(int s, char *buf, int size);
+
+/**
+ * @brief Manda un mensaje al servidor  
+ * Este mensaje pretende enviar cualquier tipo de estructura cuando se
+ * sabe de las dos partes el tamaño de esta estructura.
+ * 
+ * @param s socket al cual enviar el mensaje
+ * @param data el mensaje a enviar
+ * @param size tamaño en bytes del mensaje
+ * @return int codigo de éxito (0) o error (-1)
+ */
+int send_data(int s, void *data, size_t size);
+
+/**
+ * @brief Recibe un mensaje del servidor  
+ * Este mensaje pretende recibir cualquier tipo de estructura cuando se
+ * sabe de las dos partes el tamaño de esta estructura.
+ * 
+ * @param s socket al cual enviar el mensaje
+ * @param data en donde se almacenara el mensaje
+ * @param size tamaño en bytes del mensaje
+ * @return int codigo de éxito (0) o error (-1)
+ */
+int receive_data(int s, void *data, size_t size);
+
+/**
+ * @brief Manda una cadena al servidor
+ * en este caso primero se envia el tamaño de la cadena, para después
+ * enviar el contenido de la cadena.
+ * 
+ * @param s socket al cual enviar el mensaje
+ * @param str cadena a enviar
+ * @return int codigo de éxito (0) o error (-1)
+ */
+int send_string(int s, char *str);
+
+/**
+ * @brief Recibe una cadena del servidor
+ * en este caso primero se recibe el tamaño de la cadena, para después
+ * recibir el contenido de la cadena.
+ * 
+ * @param s socket del cual recibir la cadena
+ * @param str en donde se almacenara la cadena (si la cadena no es suficientemente larga, se ignoran los caracteres)
+ * @return int codigo de éxito (0) o error (-1)
+ */
+int receive_string(int s, char *str);
 
 int send_greeting(int s, const int greeter) {
     char buf[BUFSZ];
@@ -234,21 +279,16 @@ sres_code client_list(int s, char *filename) {
         return RSOCKET_ERROR;
     }
 
-    // 3. Recibe el tamaño de la lista a recibir
+    // 3. Recibe el tamaño de la lista
     received = recv(s, &list_size, sizeof(int), 0);
     if (received != sizeof(int)) return RSOCKET_ERROR;
 
-    // 4. Recibe versiones hasta que se indique parar
+    // 4. Recibe la lista de versiones // 4
     while (list_size--) {
         memset(&v, 0, sizeof(file_version));
-        received = recv(s, v.comment, sizeof(v.comment), 0);
-        if (received != sizeof(v.comment)) return RSOCKET_ERROR;
-        memset(buf, 0, BUFSZ);
-        received = recv(s, buf, BUFSZ, 0);
-        if (received != BUFSZ) return RSOCKET_ERROR;
-        strcpy(v.filename, buf);
-        received = recv(s, &v.hash, sizeof(v.hash), 0);
-        if (received != sizeof(v.hash)) return RSOCKET_ERROR;
+        if (receive_string(s, v.comment) == -1) return RSOCKET_ERROR;
+        if (receive_string(s, v.filename) == -1) return RSOCKET_ERROR;
+        if (receive_string(s, v.hash) == -1) return RSOCKET_ERROR;
 
         if (filename != NULL) {
             printf("%i ", ++counter);
@@ -522,14 +562,9 @@ int send_versions(int s, char *filename) {
         if (readed == 0 || readed == -1) break;
 
         if ((filename[0] == 0 || EQUALS(filename, v.filename))) {
-            sent = send(s, v.comment, sizeof(v.comment), 0);
-            if (sent != sizeof(v.comment)) break;
-            memset(buf, 0, BUFSZ);
-            strcpy(buf, v.filename);
-            sent = send(s, buf, BUFSZ, 0);
-            if (sent != BUFSZ) break;
-            sent = send(s, &v.hash, sizeof(v.hash), 0);
-            if (sent != sizeof(v.hash)) break;
+            if (send_string(s, v.comment) == -1) break;
+            if (send_string(s, v.filename) == -1) break;
+            if (send_string(s, v.hash) == -1) break;
             counter--;
         }
     }
@@ -541,15 +576,55 @@ int send_versions(int s, char *filename) {
     return 0;
 }
 
-int safe_receive_data(int s, char *buf, int size) {
-    int received;
-    char *buf_start = buf;
+int send_data(int s, void *data, size_t size) {
+    char *out_ptr = malloc(size);
+    memcpy(out_ptr, data, size);
+    ssize_t to_send = size;
+
+    while (to_send > 0) {
+        ssize_t nsent = send(s, out_ptr, to_send, 0);
+        if (nsent == -1) return -1;
+        to_send -= nsent;
+        out_ptr += nsent;
+    }
+    free(out_ptr);
+    return 0;
+}
+
+int receive_data(int s, void *data, size_t size) {
+    char *in_ptr = malloc(size);
+    ssize_t to_receive = size;
+    while (to_receive > 0) {
+        ssize_t nreceived = recv(s, in_ptr, to_receive, 0);
+        if (nreceived == -1) return -1;
+        to_receive -= nreceived;
+        in_ptr += nreceived;
+    }
+    memcpy(data, in_ptr, size);
+    free(in_ptr);
+    return 0;
+}
+
+int send_string(int s, char *str) {
+    size_t size = strlen(str);
+    if (send(s, &size, sizeof(size_t), 0) != sizeof(size_t)) return -1;
     while (size > 0) {
-        received = recv(s, buf_start, size, 0);
-        if (received == -1) return -1;
-        size -= received;
-        buf += received;
-        buf_start += received;
+        ssize_t nsent = send(s, str, size, 0);
+        if (nsent == -1) return -1;
+        size -= nsent;
+        str += nsent;
+    }
+    return 0;
+}
+
+int receive_string(int s, char *str) {
+    size_t size;
+    if (recv(s, &size, sizeof(size_t), 0) != sizeof(size_t)) return -1;
+    while (size > 0) {
+        ssize_t nreceived = recv(s, str, size, 0);
+        if (nreceived == -1) return -1;
+        size -= nreceived;
+        str += nreceived;
     }
     return 0;
 }
