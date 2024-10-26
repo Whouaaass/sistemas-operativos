@@ -8,7 +8,6 @@
 
 #include <arpa/inet.h>
 #include <bits/pthreadtypes.h>
-#include <errno.h>
 #include <libgen.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -21,96 +20,11 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "serverv.h"
+#include "versions.h"
 #include "cclientmngr.h"
-#include "protocol.h"
 
 #define max_clients 2
-
-void print_socket_error(int err) {
-    switch (err) {
-        case EACCES:
-            printf("EACCES: ");
-            printf(
-                "For UNIX domain sockets, write permission is denied on the "
-                "socket file, "
-                "or search permission is denied for one of the directories in "
-                "the path prefix.\n");
-            break;
-        case EPERM:
-            printf("EPERM: ");
-            printf(
-                "The user tried to connect to a broadcast address without "
-                "having the socket broadcast "
-                "flag enabled or the connection request failed because of a "
-                "local firewall rule.\n");
-            break;
-        case EADDRINUSE:
-            printf("EADDRINUSE: Local address is already in use.\n");
-            break;
-        case EADDRNOTAVAIL:
-            printf(
-                "EADDRNOTAVAIL: The socket had not been bound to an address "
-                "and all ephemeral ports are in use.\n");
-            break;
-        case EAFNOSUPPORT:
-            printf(
-                "EAFNOSUPPORT: The passed address didn't have the correct "
-                "address family.\n");
-            break;
-        case EAGAIN:
-            printf(
-                "EAGAIN: For nonblocking sockets, the connection cannot be "
-                "completed immediately.\n");
-            break;
-        case EALREADY:
-            printf(
-                "EALREADY: The socket is nonblocking and a previous connection "
-                "attempt is not yet completed.\n");
-            break;
-        case EBADF:
-            printf("EBADF: sockfd is not a valid open file descriptor.\n");
-            break;
-        case ECONNREFUSED:
-            printf("ECONNREFUSED: No one listening on the remote address.\n");
-            break;
-        case EFAULT:
-            printf(
-                "EFAULT: The socket structure address is outside the user's "
-                "address space.\n");
-            break;
-        case EINPROGRESS:
-            printf(
-                "EINPROGRESS: The connection cannot be completed "
-                "immediately.\n");
-            break;
-        case EINTR:
-            printf(
-                "EINTR: The system call was interrupted by a caught signal.\n");
-            break;
-        case EISCONN:
-            printf("EISCONN: The socket is already connected.\n");
-            break;
-        case ENETUNREACH:
-            printf("ENETUNREACH: Network is unreachable.\n");
-            break;
-        case ENOTSOCK:
-            printf(
-                "ENOTSOCK: The file descriptor does not refer to a socket.\n");
-            break;
-        case EPROTOTYPE:
-            printf(
-                "EPROTOTYPE: The socket type does not support the requested "
-                "communications protocol.\n");
-            break;
-        case ETIMEDOUT:
-            printf(
-                "ETIMEDOUT: Timeout while attempting connection; server may be "
-                "too busy.\n");
-            break;
-        default:
-            printf("Unknown error %d: %s\n", err, strerror(err));
-    }
-}
 
 /**
  * @brief Imprime el mensaje de ayuda
@@ -208,9 +122,7 @@ int main(const int argc, const char *argv[]) {
         // 4. (bloqueante) Esperar por un cliente `c` - accept
         c = accept(lserver_socket, (struct sockaddr *)&client_addr, &clilen);
         if (c == -1) {
-            perror("Error accepting client");
-            if (errno == EADDRNOTAVAIL) puts("Interrupted by signal");
-            print_socket_error(errno);
+            perror("Error accepting client");                        
             continue;
         }
         add_cclient(c);
@@ -264,7 +176,7 @@ void *handle_client(void *arg) {
 void terminate(int sig) {
     puts("Closing...");
 
-    close(lserver_socket);
+    shutdown(lserver_socket, SHUT_RDWR);
     dismiss_all_cclients();
 
     exit(EXIT_FAILURE);

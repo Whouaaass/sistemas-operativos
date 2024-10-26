@@ -20,7 +20,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "protocol.h"
+#include "clientv.h"
+#include "strprocessor.h"
 #include "versions.h"
 
 int server_socket;  // socket con el servidor
@@ -53,8 +54,9 @@ void usage();
 void inner_usage();
 
 /**
- * @brief 
+ * @brief Imprime el mensaje de error de un método de la API
  * 
+ * @param code codigo de error
  */
 void print_serror_message(sres_code code);
 
@@ -140,53 +142,41 @@ int make_connection(char *ip, int port) {
 }
 
 void manage_commands(int s) {
-    char stdin_buf[BUFSIZ];    
-    inner_usage();
+    char **argv;
+    int argc;
+    int rcode;
     int readed;
+    char stdin_buf[BUFSIZ];
+    inner_usage();
 
     while (1) {
-        char filename[PATH_MAX];
-        char message[BUFSZ];        
-        int version;
-        int matches;
-        int rcode;
-
-        char arg1[BUFSZ], arg2[BUFSZ];
-        char method[10];
-
         printf("rversions> ");
-        memset(stdin_buf, 0, BUFSIZ);           
-        if (fgets(stdin_buf, BUFSIZ, stdin) == NULL) break;        
+        memset(stdin_buf, 0, BUFSIZ);
+        if (fgets(stdin_buf, BUFSIZ, stdin) == NULL) break;
         readed = strlen(stdin_buf);
         if (stdin_buf[readed - 1] == '\n') stdin_buf[readed - 1] = 0;
-        matches = sscanf(stdin_buf, "%s %s %s", method, arg1, arg2);
-        
-        printf("matches: %d\n", matches);
-        switch (matches) {
-            case 3: printf("arg2: %s\n", arg2);
-            case 2: printf("arg1: %s\n", arg1);
-            case 1: printf("method: %s\n", method);        
-        }
+        argv = split_commandline(stdin_buf, &argc);        
 
-        if (EQUALS(method, "exit")) {
-            terminate(EXIT_SUCCESS);            
-        } else if (EQUALS(method, "list") && matches == 1) {                        
+        if (EQUALS(argv[0], "exit")) {
+            terminate(EXIT_SUCCESS);
+        } else if (EQUALS(argv[0], "list") && argc == 1) {
             rcode = client_list(s, NULL);
-        } else if (EQUALS(method, "list") && matches == 2) {            
+        } else if (EQUALS(argv[0], "list") && argc == 2) {
             puts("list");
-            rcode = client_list(s, arg1);
-        } else if (EQUALS(method, "add") && matches == 3) {            
-            rcode = client_add(s, arg1, arg2);
-        } else if (EQUALS(method, "get") && matches == 3) {
-            version = atoi(arg1);
-            rcode = client_get(s, arg2, version);
-        } else if (EQUALS(method, "help")) {
+            rcode = client_list(s, argv[1]);
+        } else if (EQUALS(argv[0], "add") && argc == 3) {
+            rcode = client_add(s, argv[1], argv[2]);
+        } else if (EQUALS(argv[0], "get") && argc == 3) {
+            int version = atoi(argv[1]);
+            rcode = client_get(s, argv[2], version);
+        } else if (EQUALS(argv[0], "help")) {
             inner_usage();
         } else {
             printf("Invalid command\n");
         }
-
-        if (rcode != RSERVER_OK) print_serror_message(rcode);    }
+        free(argv);
+        if (rcode != RSERVER_OK) print_serror_message(rcode);
+    }
 }
 
 void usage() { puts("usage: rversions PORT IP"); }
@@ -245,6 +235,6 @@ void handle_signal(int sig) {
 
 void terminate(int exit_code) {
     puts("Ending program...");
-    close(server_socket);
+    shutdown(server_socket, SHUT_RDWR);
     exit(exit_code);
 }

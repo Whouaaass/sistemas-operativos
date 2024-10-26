@@ -14,8 +14,8 @@ OBJ_FILES = $(patsubst $(SRC_DIR)/%.c, $(OUT_DIR)/%.o, $(SRC_FILES))
 
 # Target to compile all .o files
 all: $(OBJ_FILES)
-	$(CC) -o rversions $(OUT_DIR)/rversions.o $(OUT_DIR)/sha256.o $(OUT_DIR)/protocol.o $(OUT_DIR)/versions.o
-	$(CC) -o rversionsd $(OUT_DIR)/rversionsd.o $(OUT_DIR)/sha256.o $(OUT_DIR)/protocol.o $(OUT_DIR)/versions.o $(OUT_DIR)/cclientmngr.o
+	$(CC) -o rversions $(OUT_DIR)/rversions.o $(OUT_DIR)/sha256.o $(OUT_DIR)/protocol.o $(OUT_DIR)/versions.o $(OUT_DIR)/clientv.o $(OUT_DIR)/strprocessor.o
+	$(CC) -o rversionsd $(OUT_DIR)/rversionsd.o $(OUT_DIR)/sha256.o $(OUT_DIR)/protocol.o $(OUT_DIR)/versions.o $(OUT_DIR)/cclientmngr.o $(OUT_DIR)/serverv.o 
 
 # Rule to compile .c files to .o files
 $(OUT_DIR)/%.o: $(SRC_DIR)/%.c

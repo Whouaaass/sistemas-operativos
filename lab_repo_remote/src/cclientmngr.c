@@ -13,6 +13,7 @@
 
 #include <bits/pthreadtypes.h>
 #include <pthread.h>
+#include <sys/socket.h>
 
 pthread_mutex_t clientl_lock; /* Mutex para la lista de clientes */
 
@@ -24,6 +25,13 @@ struct client_node {
 
 /* Puntero a la cabeza de la lista */
 struct client_node *client_head = NULL;
+
+/**
+ * @brief Despide al cliente (no lo borra de la lista, solo lo elimina y cierra)
+ * 
+ * @param client cliente a despedir
+ */
+void dismiss_client(struct client_node *client);
 
 void init_cclient_manager() {
     if (pthread_mutex_init(&clientl_lock, NULL)) {
@@ -37,7 +45,7 @@ void add_cclient(int socket) {
     pthread_mutex_lock(&clientl_lock);
     struct client_node *head = client_head;
 
-    head = malloc(sizeof(struct client_node));
+    head = calloc(0, sizeof(struct client_node));
     head->socket = socket;
     head->next = client_head;
     client_head = head;
@@ -54,8 +62,7 @@ void dismiss_cclient(int socket) {
         if ((*head)->socket == socket) {
             struct client_node *tmp = *head;
             *head = (*head)->next;
-            close(socket);
-            free(tmp);
+            dismiss_client(tmp);
             break;
         }
         head = &(*head)->next;
@@ -68,13 +75,23 @@ void dismiss_all_cclients() {
     pthread_mutex_lock(&clientl_lock);
 
     struct client_node *head = client_head;
-    while (head != NULL) {
+    while (head != NULL) {        
         struct client_node *tmp = head;
+        printf("Despidiendo cliente con socket %d\n", tmp->socket);
         head = head->next;
-        close(tmp->socket);
-        free(tmp);
+        dismiss_client(tmp);
     }
 
     client_head = NULL;
     pthread_mutex_unlock(&clientl_lock);
+}
+
+
+void dismiss_client(struct client_node *client) {
+    printf("Despidiendo cliente con socket %d\n", client->socket);
+    int r_code = shutdown(client->socket, SHUT_RDWR);
+    if (r_code == -1) {
+        perror("Error closing socket");
+    }
+    free(client);
 }

@@ -1,5 +1,5 @@
 /**
- * @file
+ * @file versions.h
  * @brief API de gestion de versiones
  * @author Erwin Meza Vega <emezav@unicauca.edu.co>
  * @author Fredy Esteban Anaya Salazar <fredyanaya@unicauca.edu.co>
@@ -62,38 +62,8 @@ typedef enum {
     VERSION_OK,             /*!< La operacion se completo de forma exitosa */
     VERSION_ALREADY_EXISTS, /*!< Version ya existe */
     VERSION_NOT_FOUND,      /*!< La Version buscada no existe */
-    FILE_ADDED,             /*!< Archivo adicionado  */
-
-    /* .. */
+    FILE_ADDED              /*!< Archivo adicionado  */
 } return_code;
-
-/**
- * @brief Adiciona un archivo al repositorio.
- *
- * @param filename Nombre del archivo a adicionar
- * @param comment Comentario de la version actual
- *
- * @return Codigo de la operacion
- */
-return_code add(char *filename, char *comment);
-
-/**
- * @brief Lista las versiones de un archivo.
- *
- * @param filename Nombre del archivo, NULL para listar todo el repositorio.
- */
-void list(char *filename);
-
-/**
- * @brief Obtiene una version del un archivo.
- * Sobreescribe la version existente.
- *
- * @param filename Nombre de archivo.
- * @param version Numero secuencial de la version.
- *
- * @return 1 en caso de exito, 0 si ocurre un error.
- */
-return_code get(char *filename, int version);
 
 /**
  * @brief Crea una version en memoria del archivo
@@ -135,11 +105,11 @@ int version_exists(char *filename, char *hash);
 
 /**
  * @brief Obtiene una version del un archivo.
- * 
+ *
  * @param v version del archivo solicitada
  * @param filename nombre del archivo del cual se busca la version
  * @param version version del archivo
- * @return int 
+ * @return int
  */
 int get_version(file_version *v, char *filename, int version);
 
