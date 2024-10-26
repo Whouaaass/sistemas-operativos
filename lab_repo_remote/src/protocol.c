@@ -608,7 +608,7 @@ int receive_data(int s, void *data, size_t size) {
 int send_string(int s, char *str) {
     size_t size = strlen(str);
     if (send(s, &size, sizeof(size_t), 0) != sizeof(size_t)) return -1;
-    while (size > 0) {
+    while (size) {
         ssize_t nsent = send(s, str, size, 0);
         if (nsent == -1) return -1;
         size -= nsent;
@@ -620,7 +620,7 @@ int send_string(int s, char *str) {
 int receive_string(int s, char *str) {
     size_t size;
     if (recv(s, &size, sizeof(size_t), 0) != sizeof(size_t)) return -1;
-    while (size > 0) {
+    while (size) {
         ssize_t nreceived = recv(s, str, size, 0);
         if (nreceived == -1) return -1;
         size -= nreceived;
