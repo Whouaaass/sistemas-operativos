@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "clientv.h"
+#include "protocol.h"
 #include "strprocessor.h"
 #include "userauth.h"
 #include "versions.h"
@@ -151,13 +152,14 @@ int make_connection(char *ip, int port) {
 void manage_commands(int s) {
     char **argv;
     int argc;
-    int rcode;
+    
     int readed;
     char stdin_buf[BUFSIZ];
     char username[USERNAME_SIZE], password[PASSWORD_SIZE];
     inner_usage();
 
     while (1) {
+        pres_code rcode = RSERVER_OK;
         printf("rversions> ");
         memset(stdin_buf, 0, BUFSIZ);
         if (fgets(stdin_buf, BUFSIZ, stdin) == NULL) break;
@@ -165,27 +167,26 @@ void manage_commands(int s) {
         if (stdin_buf[readed - 1] == '\n') stdin_buf[readed - 1] = 0;
         argv = split_commandline(stdin_buf, &argc);
 
-        if (EQUALS(argv[0], "exit") && argc == 1) {
+        if (argc == 1 && EQUALS(argv[0], "exit")) {
             terminate(EXIT_SUCCESS);
-        } else if (EQUALS(argv[0], "login") && argc == 1) {
+        } else if (argc == 1 && EQUALS(argv[0], "login")) {
             puts("Iniciando sesión...");
             get_client_credentials(username, password);
             rcode = authenticate_session(s, username, password);
-        } else if (EQUALS(argv[0], "register") && argc == 1) {
+        } else if (argc == 1 && EQUALS(argv[0], "register")) {
             puts("Registrandose...");
             get_client_credentials(username, password);
             rcode = register_user(s, username, password);
-        } else if (EQUALS(argv[0], "list") && argc == 1) {
+        } else if (argc == 1 && EQUALS(argv[0], "list")) {
             rcode = client_list(s, NULL);
-        } else if (EQUALS(argv[0], "list") && argc == 2) {
-            puts("list");
+        } else if (argc == 2 && EQUALS(argv[0], "list")) {            
             rcode = client_list(s, argv[1]);
-        } else if (EQUALS(argv[0], "add") && argc == 3) {
+        } else if (argc == 3 && EQUALS(argv[0], "add")) {
             rcode = client_add(s, argv[1], argv[2]);
-        } else if (EQUALS(argv[0], "get") && argc == 3) {
+        } else if (argc == 3 && EQUALS(argv[0], "get")) {
             int version = atoi(argv[1]);
             rcode = client_get(s, argv[2], version);
-        } else if (EQUALS(argv[0], "help") && argc == 1) {
+        } else if (argc == 1 && EQUALS(argv[0], "help")) {
             inner_usage();
         } else {
             printf("Invalid command\n");
