@@ -92,13 +92,13 @@ char *get_file_hash(char *filename, char *restrict hash) {
     return hash;
 }
 
-int version_exists(char *filename, char *hash) {
+int version_exists(char *filename, char *hash, char* versions_db_path) {
     FILE *fp;
     ssize_t nread;
     file_version v;
 
     // abrimos el archivo de versiones para leer el contenido
-    if ((fp = fopen(VERSIONS_DB_PATH, "r")) == NULL) return -1;
+    if ((fp = fopen(versions_db_path, "r")) == NULL) return -1;
 
     flockfile(fp);
     while (nread = fread(&v, sizeof v, 1, fp), nread > 0) {

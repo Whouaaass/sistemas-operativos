@@ -172,7 +172,7 @@ int server_add(int s, user_session *session) {
     // 2. comprueba si el archivo ya existe
     puts("Comprobando version...");
     rserver =
-        version_exists(request.filename, request.hash) == VERSION_ALREADY_EXISTS
+        version_exists(request.filename, request.hash, get_user_versionsdb_path(session, filename_buf)) == VERSION_ALREADY_EXISTS
             ? RFILE_TO_DATE
             : RSERVER_OK;
 

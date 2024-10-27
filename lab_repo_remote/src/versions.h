@@ -117,7 +117,7 @@ void print_version(const file_version *v);
  *
  * @return 1 si la version existe, 0 en caso contrario.
  */
-int version_exists(char *filename, char *hash);
+int version_exists(char *filename, char *hash, char* versions_db_path);
 
 /**
  * @brief retorna la version del archivo indicada
