@@ -167,6 +167,9 @@ void manage_commands(int s) {
         if (stdin_buf[readed - 1] == '\n') stdin_buf[readed - 1] = 0;
         argv = split_commandline(stdin_buf, &argc);
 
+        if (argv == NULL) continue; 
+        
+
         if (argc == 1 && EQUALS(argv[0], "exit")) {
             terminate(EXIT_SUCCESS);
         } else if (argc == 1 && EQUALS(argv[0], "login")) {
