@@ -20,9 +20,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "csockets.h"
 #include "serverv.h"
+#include "userauth.h"
 #include "versions.h"
-#include "cclientmngr.h"
 
 #define max_clients 2
 
@@ -49,6 +50,12 @@ void handle_signal(int sig);
  */
 void *handle_client(void *arg);
 
+/**
+ * @brief Inicializa los directorios y archivos
+ *
+ */
+void init_dirs();
+
 /* Argumentos del manejador de clientes */
 struct clienth_args {
     int socket;
@@ -62,32 +69,17 @@ int main(const int argc, const char *argv[]) {
         usage();
         exit(EXIT_FAILURE);
     }
+
     // Argumentos de consola
     int port = atoi(argv[1]);
-
-    struct stat vfile_stat; /* Estado del archivo versions.db */
-
-    // Crear el directorio ".versions/" si no existe
-#ifdef __linux__
-    mkdir(VERSIONS_DIR, 0755);
-#elif _WIN32
-    mkdir(VERSIONS_DIR);
-#endif
-
-    // Inicializa el manejador de clientes
-    init_cclient_manager();
-
-    // Crea el archivo .versions/versions.db si no existe
-    if (stat(VERSIONS_DB_PATH, &vfile_stat) != 0) {
-        creat(VERSIONS_DB_PATH, 0755);
-    }
-
-    int c; /* socket del cliente */
     struct sockaddr_in addr;
 
-    // 0. instalar los manejadores de SIGINT, SIGTERM
+    // 0. inicializar todo
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
+    init_versions();
+    init_csockets_manager();
+    init_userauth();
 
     // 1. Obtener un conector
     lserver_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -114,6 +106,7 @@ int main(const int argc, const char *argv[]) {
     }
 
     while (1) {
+        int c; /* socket del cliente */
         socklen_t clilen = sizeof(struct sockaddr_in);
         struct sockaddr_in client_addr;
         pthread_t client_thread;
@@ -122,10 +115,10 @@ int main(const int argc, const char *argv[]) {
         // 4. (bloqueante) Esperar por un cliente `c` - accept
         c = accept(lserver_socket, (struct sockaddr *)&client_addr, &clilen);
         if (c == -1) {
-            perror("Error accepting client");                        
+            perror("Error accepting client");
             continue;
         }
-        add_cclient(c);
+        add_csocket(c);
         if (pthread_create(&client_thread, NULL, handle_client, &c)) {
             perror("Error creating client thread");
             break;
@@ -153,22 +146,23 @@ void *handle_client(void *arg) {
     char buffer[BUFSZ];
     int readed;
     int rcode;
+    user_session session;
 
     c = *(int *)arg;
 
     if (send_greeting(c, 0) || receive_greeting(c, 0)) {
         perror("Error in salute protocol");
-        dismiss_cclient(c);
+        dismiss_csocket(c);
         return NULL;
     }
 
     // Mantiene la conexión con el cliente activa hasta que se indique lo
     // contrario
-    while (rcode = server_receive_request(c), rcode == 1);
+    while (rcode = server_receive_request(c, &session), rcode == 1);
 
     printf("Client %d disconnected\n", c);
 
-    dismiss_cclient(c);
+    dismiss_csocket(c);
 
     return NULL;
 }
@@ -177,7 +171,7 @@ void terminate(int sig) {
     puts("Closing...");
 
     shutdown(lserver_socket, SHUT_RDWR);
-    dismiss_all_cclients();
+    dismiss_all_csockets();
 
     exit(EXIT_FAILURE);
 }

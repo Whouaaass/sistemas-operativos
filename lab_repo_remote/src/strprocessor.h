@@ -26,4 +26,14 @@
  */
 char **split_commandline(const char *cmdline, int *argc);
 
+/**
+ * @brief Esta función es una implementación de getpass que no muestra la contraseña en pantalla
+ * 
+ * @param lineptr 
+ * @param n 
+ * @param stream 
+ * @return ssize_t 
+ */
+ssize_t my_getpass(char **lineptr, size_t *n, FILE *stream);
+
 #endif

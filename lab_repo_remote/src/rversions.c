@@ -22,6 +22,7 @@
 
 #include "clientv.h"
 #include "strprocessor.h"
+#include "userauth.h"
 #include "versions.h"
 
 int server_socket;  // socket con el servidor
@@ -34,6 +35,15 @@ int server_socket;  // socket con el servidor
  * @return int the socket con el servidor, -1 para errores
  */
 int make_connection(char *ip, int port);
+
+/**
+ * @brief Obtiene las credenciales del cliente
+ *
+ * @param username cadena en la que se almacenará el nombre del usuario
+ * @param password cadena en la que se almacenará la contraseña
+ * @return int 0 para caso de exito, -1 para error
+ */
+int get_client_credentials(char *username, char *password);
 
 /**
  * @brief Maneja los comandos del programa
@@ -54,13 +64,6 @@ void usage();
 void inner_usage();
 
 /**
- * @brief Imprime el mensaje de error de un método de la API
- * 
- * @param code codigo de error
- */
-void print_serror_message(sres_code code);
-
-/**
  * @brief El manejador de señales
  * @param sig numero de señal
  */
@@ -75,6 +78,8 @@ void terminate(int exit_code);
 int main(int argc, char *argv[]) {
     int rcode = -1;  // codigo de retorno
     char *filename;  // nombre del archivo
+    char *username;
+    char *password;
 
     int arg_port;  // puerto del servidor
     char *arg_ip;  // ip del servidor
@@ -113,6 +118,8 @@ int main(int argc, char *argv[]) {
 int make_connection(char *ip, int port) {
     int s;  // socket del servidor
     struct sockaddr_in addr;
+    char username[USERNAME_SIZE];
+    char password[PASSWORD_SIZE];
 
     // 1. obtener un conector - socket
     s = socket(AF_INET, SOCK_STREAM, 0);
@@ -147,18 +154,27 @@ void manage_commands(int s) {
     int rcode;
     int readed;
     char stdin_buf[BUFSIZ];
+    char username[USERNAME_SIZE], password[PASSWORD_SIZE];
     inner_usage();
 
     while (1) {
         printf("rversions> ");
         memset(stdin_buf, 0, BUFSIZ);
         if (fgets(stdin_buf, BUFSIZ, stdin) == NULL) break;
-        readed = strlen(stdin_buf);
+        readed = strlen(stdin_buf);        
         if (stdin_buf[readed - 1] == '\n') stdin_buf[readed - 1] = 0;
-        argv = split_commandline(stdin_buf, &argc);        
+        argv = split_commandline(stdin_buf, &argc);
 
-        if (EQUALS(argv[0], "exit")) {
+        if (EQUALS(argv[0], "exit") && argc == 1) {
             terminate(EXIT_SUCCESS);
+        } else if (EQUALS(argv[0], "login") && argc == 1) {
+            puts("Iniciando sesión...");
+            get_client_credentials(username, password);
+            rcode = authenticate_session(s, username, password);
+        } else if (EQUALS(argv[0], "register") && argc == 1) {
+            puts("Registrandose...");
+            get_client_credentials(username, password);
+            rcode = register_user(s, username, password);
         } else if (EQUALS(argv[0], "list") && argc == 1) {
             rcode = client_list(s, NULL);
         } else if (EQUALS(argv[0], "list") && argc == 2) {
@@ -169,13 +185,14 @@ void manage_commands(int s) {
         } else if (EQUALS(argv[0], "get") && argc == 3) {
             int version = atoi(argv[1]);
             rcode = client_get(s, argv[2], version);
-        } else if (EQUALS(argv[0], "help")) {
+        } else if (EQUALS(argv[0], "help") && argc == 1) {
             inner_usage();
         } else {
             printf("Invalid command\n");
         }
+        for (int i = 0; i < argc; i++) free(argv[i]);
         free(argv);
-        if (rcode != RSERVER_OK) print_serror_message(rcode);
+        if (rcode != RSERVER_OK) puts(get_protocol_rmsg(rcode));
     }
 }
 
@@ -184,6 +201,8 @@ void usage() { puts("usage: rversions PORT IP"); }
 void inner_usage() {
     puts(
         "commands:\n"
+        "\tlogin Autentica al usuario\n"
+        "\tregister Registra un usuario\n"
         "\tlist [filename]       Lista los archivos almacenados en el "
         "repositorio\n"
         "\tadd filename comment  Añade un archivo con el comentario a un "
@@ -191,35 +210,6 @@ void inner_usage() {
         "\tget version filename  Obtiene el archivo especificado\n"
         "\thelp                  Imprime la ayuda\n"
         "\texit                  Termina el programa");
-}
-
-void print_serror_message(sres_code code) {
-    switch (code) {
-        case RFILE_TO_DATE:
-            puts("El archivo ya está actualizado");
-            break;
-        case RFILE_OUTDATED:
-            puts("El archivo no esta actualizado");
-            break;
-        case RFILE_NOT_FOUND:
-            puts("El archivo no existe");
-            break;
-        case RVERSION_NOT_FOUND:
-            puts("La versión solicitada no existe");
-            break;
-        case RSOCKET_ERROR:
-            puts("Error de socket (En escritura o lectura)");
-            break;
-        case RILLEGAL_METHOD:
-            puts("Método no permitido");
-            break;
-        case RERROR:
-            perror("Error no especificado");
-            break;
-        default:
-            perror("Error desconocido");
-            break;
-    }
 }
 
 void handle_signal(int sig) {
@@ -237,4 +227,20 @@ void terminate(int exit_code) {
     puts("Ending program...");
     shutdown(server_socket, SHUT_RDWR);
     exit(exit_code);
+}
+
+int get_client_credentials(char *username, char *password) {
+    const char *username_prompt = "Usuario: ";
+    const char *password_prompt = "Contraseña: ";
+    char *pass;
+    size_t readed;
+
+    printf("%s", username_prompt);
+    fgets(username, USERNAME_SIZE, stdin);
+    username[strlen(username) - 1] = 0;
+
+    pass = getpass(password_prompt);
+
+    memcpy(password, pass, PASSWORD_SIZE);
+    return 0;
 }

@@ -75,6 +75,8 @@ int send_file(int s, char *filename) {
         return -1;
     }
 
+    flockfile(fp);
+
     // 3. Envia el contenido del archivo
     sent = 0;
     while (file_size -= sent) {
@@ -84,6 +86,7 @@ int send_file(int s, char *filename) {
         if (sent == -1 || sent != nread) break;
     }
 
+    funlockfile(fp);
     fclose(fp);
     if (file_size != 0) return -1;
     return 0;
@@ -106,6 +109,7 @@ int receive_file(int s, char *endpath) {
         return -1;
     }
 
+    flockfile(fp);
     // 2. Recibe el contenido del archivo
     received = 0;
     while (file_size -= received) {
@@ -115,6 +119,7 @@ int receive_file(int s, char *endpath) {
         if (nwrite != received) break;
     }
 
+    funlockfile(fp);
     fclose(fp);
     if (file_size != 0) return -1;
     return 0;
@@ -122,14 +127,16 @@ int receive_file(int s, char *endpath) {
 
 int send_data(int s, void *data, size_t size) {
     char *out_ptr = malloc(size);
+    if (out_ptr == NULL) return -1;
+    char *ptr = out_ptr;
     memcpy(out_ptr, data, size);
     ssize_t to_send = size;
 
     while (to_send > 0) {
-        ssize_t nsent = send(s, out_ptr, to_send, 0);
+        ssize_t nsent = send(s, ptr, to_send, 0);
         if (nsent == -1) return -1;
         to_send -= nsent;
-        out_ptr += nsent;
+        ptr += nsent;
     }
     free(out_ptr);
     return 0;
@@ -137,12 +144,14 @@ int send_data(int s, void *data, size_t size) {
 
 int receive_data(int s, void *data, size_t size) {
     char *in_ptr = malloc(size);
+    if (in_ptr == NULL) return -1;
+    char *ptr = in_ptr;
     ssize_t to_receive = size;
     while (to_receive > 0) {
-        ssize_t nreceived = recv(s, in_ptr, to_receive, 0);
+        ssize_t nreceived = recv(s, ptr, to_receive, 0);
         if (nreceived == -1) return -1;
         to_receive -= nreceived;
-        in_ptr += nreceived;
+        ptr += nreceived;
     }
     memcpy(data, in_ptr, size);
     free(in_ptr);
@@ -178,4 +187,33 @@ int receive_string(int s, char *str, size_t max_size) {
     }
 
     return 0;
+}
+
+char *get_protocol_rmsg(pres_code code) {
+    switch (code) {
+        case RFILE_TO_DATE:
+            return "El archivo ya está actualizado";
+        case RFILE_OUTDATED:
+            return "El archivo no esta actualizado";
+        case RFILE_NOT_FOUND:
+            return "El archivo no existe";
+        case RVERSION_NOT_FOUND:
+            return "La versión solicitada no existe";
+        case RSOCKET_ERROR:
+            return "Error de socket (En escritura o lectura)";
+        case RILLEGAL_METHOD:
+            return "Método no permitido";
+        case RERROR:
+            perror("Error no especificado");
+            return "Error no especificado";
+        case RDENIED:
+            return "Acceso denegado";
+        case RUSER_NOT_FOUND:
+            return "Usuario no encontrado";
+        case RUSER_ALREADY_EXISTS:
+            return "Usuario ya existe";
+        default:
+            perror("Error desconocido");
+            return "Error desconocido";
+    }
 }

@@ -2,10 +2,10 @@
  * @file clientv.c
  * @author Fredy Esteban Anaya Salazar <fredyanaya@unicauca.edu.co>
  * @author Jorge Andrés Martinez Varón <jorgeandre@unicauca.edu.co>
- * @brief Implementación de métodos del cliente 
- * 
+ * @brief Implementación de los métodos del cliente
+ *
  * @copyright MIT License
- * 
+ *
  */
 
 #include "clientv.h"
@@ -23,22 +23,27 @@
 #include <unistd.h>
 
 #include "protocol.h"
+#include "userauth.h"
 #include "versions.h"
 
-
-sres_code client_add(int s, char *filename, char *comment) {
+pres_code client_add(int s, char *filename, char *comment) {
     const method_code method = ADD;
     struct add_request request;
     struct stat file_stat;
     ssize_t received;  // bytes recibidos y enviados
     char hash[HASH_SIZE];
-    sres_code rserver;
+    pres_code rserver;
 
     // 0. Comprobar que el archivo exista
     if (stat(filename, &file_stat) != 0) return RFILE_NOT_FOUND;
 
     // 1. Enviar el método
     if (write(s, &method, sizeof(method_code)) == -1) return RSOCKET_ERROR;
+
+    // recibe confirmación de que el método es correcto
+    received = read(s, &rserver, sizeof(pres_code));
+    if (received != sizeof(pres_code)) return RSOCKET_ERROR;
+    if (rserver != RSERVER_OK) return rserver;
 
     // 2. Enviar el nombre del archivo, hash y comentario
     puts("Obteniendo hash...");
@@ -50,8 +55,8 @@ sres_code client_add(int s, char *filename, char *comment) {
 
     // 3. Recibir una respuesta del servidor (indica si se puede subir el
     // archivo)
-    received = read(s, &rserver, sizeof(sres_code));
-    if (received != sizeof(sres_code)) return RSOCKET_ERROR;
+    received = read(s, &rserver, sizeof(pres_code));
+    if (received != sizeof(pres_code)) return RSOCKET_ERROR;
     if (rserver != RSERVER_OK) return rserver;
 
     // 4. Manda el archivo
@@ -61,17 +66,17 @@ sres_code client_add(int s, char *filename, char *comment) {
     }
 
     // 5. Recibe la respuesta del servidor
-    received = read(s, &rserver, sizeof(sres_code));
-    if (received != sizeof(sres_code)) return RSOCKET_ERROR;
+    received = read(s, &rserver, sizeof(pres_code));
+    if (received != sizeof(pres_code)) return RSOCKET_ERROR;
     if (rserver != RSERVER_OK) return rserver;
 
     return RSERVER_OK;
 }
 
-sres_code client_get(int s, char *filename, int version) {
+pres_code client_get(int s, char *filename, int version) {
     const method_code method = GET;
     struct get_request request;
-    sres_code rserver;
+    pres_code rserver;
     cres_code cres;
     ssize_t sent, received;
     char server_hash[HASH_SIZE];
@@ -82,14 +87,19 @@ sres_code client_get(int s, char *filename, int version) {
     sent = write(s, &method, sizeof(method_code));
     if (sent != sizeof(method_code)) return RSOCKET_ERROR;
 
+    // recibe confirmación de que el método es correcto
+    received = read(s, &rserver, sizeof(pres_code));
+    if (received != sizeof(pres_code)) return RSOCKET_ERROR;
+    if (rserver != RSERVER_OK) return rserver;
+
     // 2. Enviar la versión y el nombre del archivo
     sent = write(s, &version, sizeof(int));
     if (sent != sizeof(int)) return RSOCKET_ERROR;
     if (send_string(s, filename) == -1) return RSOCKET_ERROR;
 
     // 3. Recibe la respuesta del servidor indicando si el archivo existe
-    received = read(s, &rserver, sizeof(sres_code));
-    if (received != sizeof(sres_code)) return RSOCKET_ERROR;
+    received = read(s, &rserver, sizeof(pres_code));
+    if (received != sizeof(pres_code)) return RSOCKET_ERROR;
     if (rserver != RSERVER_OK) return rserver;
 
     // 4. Recibe el hash de la versión
@@ -118,9 +128,9 @@ sres_code client_get(int s, char *filename, int version) {
     return RSERVER_OK;
 }
 
-sres_code client_list(int s, char *filename) {
+pres_code client_list(int s, char *filename) {
     method_code method = LIST;
-    sres_code rserver;
+    pres_code rserver;
     cres_code rclient;
     file_version v;
     char buf[BUFSZ];
@@ -135,6 +145,11 @@ sres_code client_list(int s, char *filename) {
     if (write(s, &method, sizeof(method_code)) == -1) {
         return RSOCKET_ERROR;
     }
+
+    // recibe confirmación de que el método es correcto
+    received = read(s, &rserver, sizeof(pres_code));
+    if (received != sizeof(pres_code)) return RSOCKET_ERROR;
+    if (rserver != RSERVER_OK) return rserver;
 
     memset(buf, 0, BUFSZ);
     if (filename != 0) snprintf(buf, BUFSZ, "%s", filename);
@@ -167,4 +182,66 @@ sres_code client_list(int s, char *filename) {
     }
 
     return RSERVER_OK;
+}
+
+int authenticate_session(int s, char *username, char *password) {
+    method_code method = LOGIN;
+    struct user_auth_request request;
+    ssize_t s_size;
+    pres_code rserver;
+    cres_code cres;
+
+    // manda el método que se desea ejecutar
+    s_size = write(s, &method, sizeof(method_code));
+    if (s_size != sizeof(method_code)) return -1;
+
+    // recibe confirmación de que el método es correcto
+    if (read(s, &rserver, sizeof(pres_code)) != sizeof(pres_code))
+        return RSOCKET_ERROR;
+    if (rserver != RSERVER_OK) return rserver;
+
+    memset(&request, 0, sizeof(struct user_auth_request));
+    snprintf(request.username, USERNAME_SIZE, "%s", username);
+    snprintf(request.password, PASSWORD_SIZE, "%s", password);
+
+    // 1. envia la petición
+    if (send_data(s, &request, sizeof(struct user_auth_request)) == -1)
+        return -1;
+
+    // 2. recibe el codigo de respuesta
+    s_size = read(s, &rserver, sizeof(pres_code));
+    if (s_size != sizeof(pres_code)) return -1;
+
+    return rserver;
+}
+
+int register_user(int s, char *username, char *password) {
+    const method_code method = REGISTER;
+    struct user_auth_request request;
+    ssize_t s_size;
+    pres_code rserver;
+    cres_code cres;
+
+    // manda el método que se desea ejecutar
+    s_size = write(s, &method, sizeof(method_code));
+    if (s_size != sizeof(method_code)) return -1;
+
+    // recibe confirmación de que el método es correcto
+    if (read(s, &rserver, sizeof(pres_code)) != sizeof(pres_code))
+        return RSOCKET_ERROR;
+    if (rserver != RSERVER_OK) return rserver;
+
+    memset(&request, 0, sizeof(request));
+    snprintf(request.username, USERNAME_SIZE, "%s", username);
+    snprintf(request.password, PASSWORD_SIZE, "%s", password);
+
+    // 1. envia la petición
+    if (send_data(s, &request, sizeof(struct user_auth_request)) == -1)
+        return -1;
+
+    // 2. recibe el codigo de respuesta
+    s_size = read(s, &rserver, sizeof(pres_code));
+    if (s_size != sizeof(pres_code)) return -1;
+
+    return rserver;
 }

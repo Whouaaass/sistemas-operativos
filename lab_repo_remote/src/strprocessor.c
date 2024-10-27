@@ -3,10 +3,10 @@
  * @author Fredy Esteban Anaya Salazar <fredyanaya@unicauca.edu.co>
  * @author Jorge Andrés Martinez Varón <jorgeandre@unicauca.edu.co>
  * @author Joakim Söderberg <https://github.com/JoakimSoderberg>
- * @brief Implementación de manejo personalizado de strings 
- * 
+ * @brief Implementación de manejo personalizado de strings
+ *
  * @copyright MIT License
- * 
+ *
  */
 
 #include "strprocessor.h"
@@ -20,6 +20,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <wordexp.h>
+#include <termios.h>
 
 #ifdef _WIN32
 #include <shellapi.h>
@@ -129,4 +130,23 @@ char **split_commandline(const char *cmdline, int *argc) {
     }
 
     return NULL;
+}
+
+ssize_t my_getpass(char **lineptr, size_t *n, FILE *stream) {
+    struct termios old, new;
+    int nread;
+
+    /* Turn echoing off and fail if we can't. */
+    if (tcgetattr(fileno(stream), &old) != 0) return -1;
+    new = old;
+    new.c_lflag &= ~ECHO;
+    if (tcsetattr(fileno(stream), TCSAFLUSH, &new) != 0) return -1;
+
+    /* Read the password. */
+    nread = getline(lineptr, n, stream);
+
+    /* Restore terminal. */
+    (void)tcsetattr(fileno(stream), TCSAFLUSH, &old);
+
+    return nread;
 }

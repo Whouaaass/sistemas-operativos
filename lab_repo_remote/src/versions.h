@@ -26,18 +26,20 @@
 
 #include "sha256.h"
 
-#define COMMENT_SIZE 80 /** < Longitud del comentario */
-#define HASH_SIZE 256   /**< Longitud del hash incluyendo NULL*/
+/** Longitud del comentario */
+#define COMMENT_SIZE 80
+/** Longitud del hash incluyendo NULL*/
+#define HASH_SIZE 256
+/* TAmaño de leida de un archivo */
 #define READ_CHUNK PATH_MAX
-
-#define VERSIONS_DB \
-    "versions.db" /**< Nombre de la base de datos de versiones. */
-#define VERSIONS_DIR ".versions" /**< Directorio del repositorio. */
-#define VERSIONS_DB_PATH \
-    VERSIONS_DIR "/" VERSIONS_DB /**< Ruta completa de la base de datos.*/
-
-#define EQUALS(s1, s2) \
-    (strcmp(s1, s2) == 0) /**< Verdadero si dos cadenas son iguales.*/
+/** Nombre de la base de datos de versiones. */
+#define VERSIONS_DB "versions.db"
+/** Directorio del repositorio. */
+#define VERSIONS_DIR "files"
+/** Ruta completa de la base de datos.*/
+#define VERSIONS_DB_PATH VERSIONS_DIR "/" VERSIONS_DB
+/** Verdadero si dos cadenas son iguales.*/
+#define EQUALS(s1, s2) (strcmp(s1, s2) == 0)
 
 /**
  * @brief Version de un archivo.
@@ -66,28 +68,38 @@ typedef enum {
 } return_code;
 
 /**
+ * @brief Inicializa el gestor de versiones 
+ * @return int 0 si se inicializa correctamente, -1 si ocurre algún error
+ */
+int init_versions();
+
+/**
  * @brief Crea una version en memoria del archivo
  * Valida si el archivo especificado existe y crea su hash
+ * @param filename Nombre del archivo
+ * @param hash Hash del contenido del archivo
+ * @param comment Comentario
+ * @param result Nueva version en memoria
  *
- * @param filename nombre del archivo
- * @param comment comentario
- * @param result resultado
- * @return return_code
+ * @return Resultado de la operacion
  */
 return_code create_version(char *filename, char *comment, file_version *result);
 
 /**
- * @brief guarda una version en el repositori
- * @param v version de archivo que se guardará
- * @return return_code
+ * @brief Adiciona una nueva version de un archivo.
+ *
+ * @param v version de archivo a añadir
+ * @param versions_db_path ruta completa al archivo de versiones
+ *
+ * @return 1 en caso de exito, 0 en caso de error.
  */
-return_code add_new_version(file_version *v);
+return_code add_new_version(file_version *v, char* versions_db_path);
 
 /**
- * @brief get_file_hash
- * @param filename nombre del archivo
- * @param hash buffer para almacenar el hash
- * @return char*
+ * @brief Obtiene el hash de un archivo.
+ * @param filename Nombre del archivo a obtener el hash
+ * @param hash Buffer para almacenar el hash (HASH_SIZE)
+ * @return Referencia al buffer, NULL si ocurre error
  */
 char *get_file_hash(char *filename, char *hash);
 
@@ -98,19 +110,23 @@ char *get_file_hash(char *filename, char *hash);
 void print_version(const file_version *v);
 
 /**
- * @brief indica si existe una version para un archivo
+ * @brief Verifica si existe una version para un archivo
  *
+ * @param filename Nombre del archivo
+ * @param hash Hash del contenido
+ *
+ * @return 1 si la version existe, 0 en caso contrario.
  */
 int version_exists(char *filename, char *hash);
 
 /**
- * @brief Obtiene una version del un archivo.
- *
- * @param v version del archivo solicitada
- * @param filename nombre del archivo del cual se busca la version
- * @param version version del archivo
- * @return int
+ * @brief retorna la version del archivo indicada
+ * @param filename Nombre del archivo del cual se busca la version
+ * @param version Version del archivo
+ * @param v en la cual se va a guardar el resultado
+ * @param versions_db_path ruta completa al archivo de versiones
+ * @return estructura con los datos del archivo
  */
-int get_version(file_version *v, char *filename, int version);
+int get_version(file_version *v, char *filename, int version, char* versions_db_path);
 
 #endif
