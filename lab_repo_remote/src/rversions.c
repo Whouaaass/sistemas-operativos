@@ -205,8 +205,8 @@ void usage() { puts("usage: rversions PORT IP"); }
 void inner_usage() {
     puts(
         "commands:\n"
-        "\tlogin Autentica al usuario\n"
-        "\tregister Registra un usuario\n"
+        "\tlogin                 Autentica al usuario\n"
+        "\tregister              Registra un usuario\n"
         "\tlist [filename]       Lista los archivos almacenados en el "
         "repositorio\n"
         "\tadd filename comment  Añade un archivo con el comentario a un "
