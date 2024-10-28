@@ -10,6 +10,7 @@ rversionsd
 
 # Project Ignores
 .versions
+files
 rversions
 rversionsd
 
