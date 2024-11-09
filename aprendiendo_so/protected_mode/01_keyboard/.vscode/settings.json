@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.embeddedhtml": "html",
+        "irq.h": "c",
+        "keyboard.h": "c"
+    }
+}
