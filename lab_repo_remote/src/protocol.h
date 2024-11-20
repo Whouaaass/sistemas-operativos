@@ -11,6 +11,7 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include "userauth.h"
 #include "versions.h"
 
 /* Tamaño del buffer para mensajers simples al socket */
@@ -23,21 +24,24 @@
 /**
  * Codigo de los métodos
  */
-typedef enum { GET, ADD, LIST, EXIT } method_code;
+typedef enum { GET, ADD, LIST, LOGIN, REGISTER, EXIT } method_code;
 
 /**
  * Codigo de las respuestas del servidor
  */
 typedef enum {
-    RSERVER_OK,         /* !< Petición procesada correctamente */
-    RFILE_TO_DATE,      /* !< El archivo mandado está actualizado */
-    RFILE_OUTDATED,     /* !< El archivo mandado está desactualizado */
-    RFILE_NOT_FOUND,    /* !< El archivo no existe */
-    RVERSION_NOT_FOUND, /* !< La versión solicitada no existe */
-    RSOCKET_ERROR,      /* !< Error de socket (En escritura o lectura) */
-    RILLEGAL_METHOD,    /* !< Método no permitido */
-    RERROR,             /* !< Error no especificado */
-} sres_code;
+    RSERVER_OK,           /* !< Petición procesada correctamente */
+    RFILE_TO_DATE,        /* !< El archivo mandado está actualizado */
+    RFILE_OUTDATED,       /* !< El archivo mandado está desactualizado */
+    RFILE_NOT_FOUND,      /* !< El archivo no existe */
+    RVERSION_NOT_FOUND,   /* !< La versión solicitada no existe */
+    RSOCKET_ERROR,        /* !< Error de socket (En escritura o lectura) */
+    RILLEGAL_METHOD,      /* !< Método no permitido */
+    RDENIED,              /* !< Acceso denegado */
+    RUSER_NOT_FOUND,      /* !< Usuario no encontrado */
+    RUSER_ALREADY_EXISTS, /* !< Usuario ya existe */
+    RERROR,               /* !< Error no especificado */
+} pres_code;
 
 /**
  * Codigo de las respuestas del cliente
@@ -59,6 +63,11 @@ struct add_request {
     char filename[PATH_MAX];
     char hash[HASH_SIZE];
     char comment[COMMENT_SIZE];
+};
+
+struct user_auth_request {
+    char username[USERNAME_SIZE];
+    char password[PASSWORD_SIZE];
 };
 
 /**
@@ -85,7 +94,7 @@ int receive_greeting(int s, const int greeter);
  * @param filepath ruta donde se encuentra el archivo
  * @return int 0 en caso de exito, -1 en caso de error
  */
-int send_file(int s, char* filepath);
+int send_file(int s, char *filepath);
 
 /**
  * @brief Recibe un archivo del socket
@@ -94,7 +103,7 @@ int send_file(int s, char* filepath);
  * @param filepath ruta en la que se guardará el archivo
  * @return int 0 en caso de exito, -1 en caso de error
  */
-int receive_file(int s, char* filepath);
+int receive_file(int register_users, char *filepath);
 
 /**
  * @brief Manda una cadena al servidor
@@ -144,5 +153,12 @@ int send_data(int s, void *data, size_t size);
  */
 int receive_data(int s, void *data, size_t size);
 
+/**
+ * @brief Obtiene el mensaje de respuesta del protocolo
+ *
+ * @param code
+ * @return char*
+ */
+char *get_protocol_rmsg(pres_code code);
 
 #endif

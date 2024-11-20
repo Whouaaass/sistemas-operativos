@@ -7,8 +7,8 @@
  * @copyright MIT License
  */
 
-#ifndef CCLIENTMNGR_H
-#define CCLIENTMNGR_H
+#ifndef CSOCKETS_H
+#define CSOCKETS_H
 
 #include <pthread.h>
 
@@ -22,25 +22,25 @@
  * @brief Inicializa el manejador de clientes
  * Ahora mismo esto es necesario por el mutex
  */
-void init_cclient_manager();
+void init_csockets_manager();
 
 /**
  * @brief Añade un cliente a la lista de clientes conectados
  *
  * @param socket socket del cliente
  */
-void add_cclient(int socket);
+void add_csocket(int socket);
 
 /**
  * @brief Elimina un cliente (cerrando su conexión)
  *
  * @param socket socket del cliente
  */
-void dismiss_cclient(int socket);
+void dismiss_csocket(int socket);
 
 /**
  * @brief Cierra la conexión con todos los clientes
  */
-void dismiss_all_cclients();
+void dismiss_all_csockets();
 
 #endif

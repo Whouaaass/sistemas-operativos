@@ -13,6 +13,7 @@ va a tener que reconocer:
 El método add comprende la adición de archivos al servidor
 ### Cliente
 1. Manda el nombre/identificador del método ("ADD")
+	Espera confirmación de que el método es correcto	
 2. Manda hash del archivo, con su nombre y comentario
 3. Recibe una respuesta indicando si es necesario subir el archivo (está actualizado)
 4. Si no es necesario subir el archivo, termina la conexión
@@ -22,6 +23,7 @@ El método add comprende la adición de archivos al servidor
 8. Cierra la conexión con el servidor
 ### Servidor
 1. Recibe el nombre/identificador ("ADD") y se prepara para el otro mensaje
+	Responde confirmando que el método es correcto
 2. Recibe el hash del archivo, con su nombre
 3. Manda una respuesta indicando si el archivo está actualizado o no
 4. Si el archivo está actualizado, termina la conexión
@@ -34,6 +36,7 @@ El método add comprende la adición de archivos al servidor
 El método get comprende el envio de un archivo al cliente
 ### Cliente
 1. Manda el nombre/identificador del método ("GET")
+	Espera confirmación de que el método es correcto
 2. Manda el nombre del archivo, junto con la versión que desea obtener
 3. Recibe el hash del archivo del servidor o se indica que no existe tal archivo o versión
 4. Si el archivo no existe termina la conexión
@@ -44,6 +47,7 @@ El método get comprende el envio de un archivo al cliente
 9. Cierra conexión
 ### Servidor
 1. Recibe el nombre/identificador del método ("GET")
+	Responde confirmando que el método es correcto
 2. Recibe el nombre del archivo, junto con su versión
 3. Si el archivo no existe, manda un mensaje diciendo que la versión o el archivo no existe y termina la conexión
 4. Manda el hash de la versión
@@ -58,37 +62,24 @@ El método consiste en listar las versiones de un archivo ("nombre del archivo",
 Se puede especificar el archivo del cual se desee listar las versiones, de lo contrario se deberán mostrar las versiones de todos los archivos
 ### Cliente
 1. Manda el nombre/identificador del método ("LIST")
+	Espera confirmación de que el método es correcto
 2. Manda el nombre del archivo o manda 0's
 3. Recibe versiones hasta que se indique parar
 5. Cierra conexión
 ### Servidor
 1. Recibe el nombre/identificador del método ("LIST")
+	Responde confirmando que el método es correcto
 2. Recibe el nombre del archivo o recibe 0's
 3. Manda versiones hasta que se indique parar
 5. Cierra la conexión
 
-
-## Estructura de los mensajes
 **Method Indicator**
 Será un enum, que tendra las opciones de:
 - GET
 - ADD
 - LIST
-
-**Size Indicator**
-Sera un unsigned int, que contendra el número de bytes que se tendrán que leer a con
-
-**Method Client Message**
-Es el mensaje personalizado para cada método del cliente
-- GET: tiene el nombre del archivo y la version
-- ADD: tiene el nombre del archivo, el hash y el comentario
-- LIST: tiene el nombre del archivo
-
-**Method Server Response**
-Es la respuesta personalizada para cada método del servidor
-- GET: tiene el codigo de respuesta y el hash
-- ADD: tiene el codigo de respuesta
-- LIST: tiene el codigo de respuesta y tamaño de la lista
+- LOGIN
+- REGISTER
 
 
 

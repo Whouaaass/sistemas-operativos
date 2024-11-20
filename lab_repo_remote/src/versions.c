@@ -9,7 +9,9 @@
 
 #include "versions.h"
 
+#include <fcntl.h>
 #include <libgen.h>
+#include <stdio.h>
 
 /**
  * @brief Imprime la estructura que guarda la version
@@ -17,56 +19,22 @@
  */
 void print_version(const file_version *v);
 
-/**
- * @brief Crea una version en memoria del archivo
- * Valida si el archivo especificado existe y crea su hash
- * @param filename Nombre del archivo
- * @param hash Hash del contenido del archivo
- * @param comment Comentario
- * @param result Nueva version en memoria
- *
- * @return Resultado de la operacion
- */
-return_code create_version(char *filename, char *comment, file_version *result);
+int init_versions() {
+    struct stat vfile_stat; /* Estado del archivo versions.db */
 
-/**
- * @brief Verifica si existe una version para un archivo
- *
- * @param filename Nombre del archivo
- * @param hash Hash del contenido
- *
- * @return 1 si la version existe, 0 en caso contrario.
- */
-int version_exists(char *filename, char *hash);
+    // Crear el directorio ".versions/" si no existe
+#ifdef __linux__
+    mkdir(VERSIONS_DIR, 0755);
+#elif _WIN32
+    mkdir(VERSIONS_DIR);
+#endif
 
-/**
- * @brief retorna la version del archivo indicada
- * @param filename Nombre del archivo del cual se busca la version
- * @param version Version del archivo
- * @param v en la cual se va a guardar el resultado
- * @return estructura con los datos del archivo
- */
-int get_version(file_version *v, char *filename, int version);
-
-/**
- * @brief Obtiene el hash de un archivo.
- * @param filename Nombre del archivo a obtener el hash
- * @param hash Buffer para almacenar el hash (HASH_SIZE)
- * @return Referencia al buffer, NULL si ocurre error
- */
-char *get_file_hash(char *filename, char *hash);
-
-
-/**
- * @brief Adiciona una nueva version de un archivo.
- *
- * @param filename Nombre del archivo.
- * @param comment Comentario de la version.
- * @param hash Hash del contenido.
- *
- * @return 1 en caso de exito, 0 en caso de error.
- */
-return_code add_new_version(file_version *v);
+    // Crea el archivo .versions/versions.db si no existe
+    if (stat(VERSIONS_DB_PATH, &vfile_stat) != 0) {
+        creat(VERSIONS_DB_PATH, 0755);
+    }
+    return 0;
+}
 
 return_code create_version(char *filename, char *comment,
                            file_version *result) {
@@ -94,21 +62,21 @@ return_code create_version(char *filename, char *comment,
     return VERSION_CREATED;
 }
 
-return_code add_new_version(file_version *v) {
+return_code add_new_version(file_version *v, char* versions_db_path) {
     FILE *fp;
-    fp = fopen(VERSIONS_DB_PATH, "ab");
+    fp = fopen(versions_db_path, "ab");
     if (fp == NULL) {
         return VERSION_ERROR;
     }
+    flockfile(fp);
 
     // Adiciona un nuevo registro (estructura) al archivo versions.db
     fwrite(v, sizeof *v, 1, fp);
 
+    funlockfile(fp);
     fclose(fp);
     return VERSION_CREATED;
 }
-
-
 
 char *get_file_hash(char *filename, char *restrict hash) {
     struct stat s;
@@ -118,43 +86,48 @@ char *get_file_hash(char *filename, char *restrict hash) {
         perror("stat");
         return NULL;
     }
-
+    
     sha256_hash_file_hex(filename, hash);
 
     return hash;
 }
 
-int version_exists(char *filename, char *hash) {
+int version_exists(char *filename, char *hash, char* versions_db_path) {
     FILE *fp;
     ssize_t nread;
     file_version v;
 
     // abrimos el archivo de versiones para leer el contenido
-    if ((fp = fopen(VERSIONS_DB_PATH, "r")) == NULL) return -1;
+    if ((fp = fopen(versions_db_path, "r")) == NULL) return -1;
 
+    flockfile(fp);
     while (nread = fread(&v, sizeof v, 1, fp), nread > 0) {
         if (EQUALS(filename, v.filename) && EQUALS(hash, v.hash)) {
+            funlockfile(fp);
             fclose(fp);
             return VERSION_ALREADY_EXISTS;
         }
     }
 
+    funlockfile(fp);
     fclose(fp);
     // Verifica si en la bd existe un registro que coincide con filename y hash
     return 1;
 }
 
-int get_version(file_version *v, char *filename, int version) {
+int get_version(file_version *v, char *filename, int version, char* versions_db_path) {
     FILE *fp;
     ssize_t nread;
     int count = 0;
-    if ((fp = fopen(VERSIONS_DB_PATH, "r")) == NULL) return -1;
+    if ((fp = fopen(versions_db_path, "r")) == NULL) return -1;
+    flockfile(fp);
     while (nread = fread(v, sizeof *v, 1, fp), nread > 0) {
         if (EQUALS(filename, v->filename) && ++count == version) {
             fclose(fp);
             return VERSION_OK;
         }
     }
+    funlockfile(fp);
     fclose(fp);
     return VERSION_NOT_FOUND;
 }

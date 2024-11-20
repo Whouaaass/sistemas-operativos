@@ -2,14 +2,12 @@
  * @file cclientmngr.c
  * @author Fredy Esteban Anaya Salazar <fredyanaya@unicauca.edu.co>
  * @author Jorge Andrés Martinez Varón <jorgeandre@unicauca.edu.co>
- * @brief Implementación del gestor de clientes
- * @version 0.1
- * @date 2024-10-25
+ * @brief Implementación del gestor de clientes 
  *
- * @copyright Copyright (c) 2024
+ * @copyright MIT License
  *
  */
-#include "cclientmngr.h"
+#include "csockets.h"
 
 #include <bits/pthreadtypes.h>
 #include <pthread.h>
@@ -31,9 +29,9 @@ struct client_node *client_head = NULL;
  * 
  * @param client cliente a despedir
  */
-void dismiss_client(struct client_node *client);
+void dismiss_socket(struct client_node *client);
 
-void init_cclient_manager() {
+void init_csockets_manager() {
     if (pthread_mutex_init(&clientl_lock, NULL)) {
         perror("Error initializing client mutex");
         exit(EXIT_FAILURE);
@@ -41,7 +39,7 @@ void init_cclient_manager() {
     client_head = NULL;
 }
 
-void add_cclient(int socket) {
+void add_csocket(int socket) {
     pthread_mutex_lock(&clientl_lock);
     struct client_node *head = client_head;
 
@@ -53,7 +51,7 @@ void add_cclient(int socket) {
     pthread_mutex_unlock(&clientl_lock);
 }
 
-void dismiss_cclient(int socket) {
+void dismiss_csocket(int socket) {
     pthread_mutex_lock(&clientl_lock);
 
     struct client_node **head = &client_head;
@@ -62,7 +60,7 @@ void dismiss_cclient(int socket) {
         if ((*head)->socket == socket) {
             struct client_node *tmp = *head;
             *head = (*head)->next;
-            dismiss_client(tmp);
+            dismiss_socket(tmp);
             break;
         }
         head = &(*head)->next;
@@ -71,7 +69,7 @@ void dismiss_cclient(int socket) {
     pthread_mutex_unlock(&clientl_lock);
 }
 
-void dismiss_all_cclients() {
+void dismiss_all_csockets() {
     pthread_mutex_lock(&clientl_lock);
 
     struct client_node *head = client_head;
@@ -79,7 +77,7 @@ void dismiss_all_cclients() {
         struct client_node *tmp = head;
         printf("Despidiendo cliente con socket %d\n", tmp->socket);
         head = head->next;
-        dismiss_client(tmp);
+        dismiss_socket(tmp);
     }
 
     client_head = NULL;
@@ -87,7 +85,7 @@ void dismiss_all_cclients() {
 }
 
 
-void dismiss_client(struct client_node *client) {
+void dismiss_socket(struct client_node *client) {
     printf("Despidiendo cliente con socket %d\n", client->socket);
     int r_code = shutdown(client->socket, SHUT_RDWR);
     if (r_code == -1) {
