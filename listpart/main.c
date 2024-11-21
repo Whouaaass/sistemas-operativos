@@ -1,6 +1,7 @@
 /**
  * @file
  * @author Erwin Meza Vega <emezav@unicauca.edu.co>
+ * @author Fredy Anaya <fredyanaya@unicauca.edu.co>
  * @brief Listar particiones de discos duros MBR/GPT
  * @copyright MIT License
  */
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
 
 	for (i = 1; i < argc; i++)
 	{
+		printf("Listing partitions of %s\n", argv[i]);
 		list_partitions(argv[i]);
 	}
 
@@ -140,13 +142,16 @@ int list_partitions(char *disk_route)
 		for (int j = 0; j < 4; j++)
 		{
 			gpt_partition_descriptor *desc = &descs[j];
+
 			if (is_null_descriptor(desc))
-				continue;
+				continue;			
+
+			const gpt_partition_type *pt = get_gpt_partition_type(guid_to_str(&desc->partition_type_guid));
 			printf("%12u %12u %13u %s %s\n",
 				   desc->starting_lba,
 				   desc->ending_lba,
 				   (desc->ending_lba - desc->starting_lba + 1) * SECTOR_SIZE,
-				   get_gpt_partition_type(guid_to_str(&desc->partition_type_guid))->description,
+				   pt->description == NULL ? "Unknown" : pt->description,
 				   gpt_decode_partition_name(desc->partition_name));
 		}
 	}
@@ -183,15 +188,15 @@ void print_mbr_table(mbr *mbr)
 	for (int i = 0; i < 4; i++)
 	{
 		mbr_partition_descriptor *partition = &mbr->partition_table[i];
-		if (partition->partition_type == MBR_TYPE_UNUSED)
+		if (partition->type == MBR_TYPE_UNUSED)
 			continue;
 
 		char partition_name[TYPE_NAME_LEN];
-		mbr_partition_type(partition->partition_type, partition_name);
+		mbr_partition_type(partition->type, partition_name);
 
 		printf("%12u %12u %s\n",
-			   partition->start_lba,
-			   partition->lba_size - partition->start_lba,
+			   partition->lba_start,
+			   partition->lba_size - partition->lba_start,
 			   partition_name);
 	}
 	printf("------------ ------------ --------------------------------\n");

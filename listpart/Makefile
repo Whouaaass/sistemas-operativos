@@ -1,22 +1,14 @@
-all: main.o mbr.o gpt.o
-	gcc -o listpart main.o mbr.o gpt.o -lm
+all: main.o mbr.o gpt.o utils.o
+	gcc -o listpart main.o mbr.o gpt.o utils.o -lm
 
-main.o: main.c
-	gcc -c -o main.o main.c
-
-mbr.o: mbr.c
-	gcc -c -o mbr.o mbr.c
-
-
-gpt.o: gpt.c
-	gcc -c -o gpt.o gpt.c
-
+%.o: %.c
+	gcc -c -o $@ $<
 
 doc:
 	doxygen
 
 clean:
-	rm -rf main.o listpart docs
+	rm -rf *.o listpart docs
 
 
 install: all

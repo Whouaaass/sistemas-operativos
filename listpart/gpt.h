@@ -1,6 +1,7 @@
 /**
 * @file
 * @author Erwin Meza Vega <emezav@unicauca.edu.co>
+* @author Fredy Anaya <fredyanaya@unicauca.edu.co>
 * @brief Definiciones para discos inicializados con esquema GPT
 * @copyright MIT License
 */

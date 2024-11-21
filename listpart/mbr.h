@@ -1,5 +1,7 @@
 /**
-* @file
+* @file mbr.h
+* @author Erwin Meza Vega <emezav@unicauca.edu.co>
+* @author Fredy Anaya <fredyanaya@unicauca.edu.co>
 * @brief Definiciones para discos inicializados con esquema BR
 */
 
@@ -25,11 +27,11 @@ typedef struct {
 	unsigned char start_head;
 	unsigned char start_sector;
 	unsigned char start_track;
-	unsigned char partition_type;
+	unsigned char type;
 	unsigned char end_head;
 	unsigned char end_sector;
 	unsigned char end_track;
-	unsigned int start_lba;
+	unsigned int lba_start;
 	unsigned int lba_size;
 }__attribute__((packed)) mbr_partition_descriptor;
 

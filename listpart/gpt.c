@@ -1,6 +1,8 @@
 /**
- * @file
+ * @file gpt.c
+ * @brief GPT partition table functions
  * @author Erwin Meza Vega <emezav@unicauca.edu.co>
+ * @author Fredy Anaya <fredyanaya@unicauca.edu.co>
  * @copyright MIT License
  */
 
@@ -8,6 +10,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include "utils.h"
+
 #include "gpt.h"
 
 #define GPT_SIGNATURE 0x5452415020494645ULL
@@ -292,17 +296,10 @@ int is_protective_mbr(mbr *boot_record)
 	/* TODO verificar si el MBR es un MBR de proteccion */
 	/* Retorna 1 si el boot record tiene una tabla de particiones
 	con solo una partición definida, de tipo GPT Protective MBR (0xEE) */
-	if (boot_record->partition_table[0].partition_type == MBR_TYPE_GPT)
+	if (boot_record->partition_table[0].type == MBR_TYPE_GPT)
 		return 1;
 	return 0;
 }
-
-/**
- * @brief Compares two strings ignoring case
- * @param str_1 First string
- * @param str_2 Second string
- */
-int strcicmp(char const *str_1, char const *str_2);
 
 int is_valid_gpt_header(gpt_header *hdr)
 {
@@ -377,17 +374,14 @@ char *gpt_decode_partition_name(char name[72])
 
 int is_null_descriptor(gpt_partition_descriptor *desc)
 {
-	if (desc->partition_type_guid.time_lo == 0)
-		return 1;
-	return 0;
+	for (unsigned char *byte = (unsigned char *)desc; byte < (unsigned char *)desc + sizeof(gpt_partition_descriptor); byte++)
+		if (*byte != 0)
+			return 0;
+	return 1;
 }
 
 const gpt_partition_type *get_gpt_partition_type(char *guid_str)
 {
-	char *ptr = malloc(strlen(guid_str) + 1);
-	strcpy(ptr, guid_str);
-	for (int i = 0; i < strlen(ptr); i++)
-		ptr[i] = toupper(ptr[i]);
 
 	const gpt_partition_type *pt = gpt_partition_types;
 
@@ -398,19 +392,5 @@ const gpt_partition_type *get_gpt_partition_type(char *guid_str)
 		pt++;
 	}
 
-	free(ptr);
-	// Default: return first element of partition type array
 	return pt;
-}
-
-int strcicmp(char const *str_1, char const *str_2)
-{
-	while (1)
-	{
-		int d = tolower(*str_1) - tolower(*str_2); 
-		if (d != 0 || *str_1 == '\0' || *str_2 == '\0')
-			return d;
-		str_1++;
-		str_2++;
-	}
 }
