@@ -323,7 +323,6 @@ int is_valid_gpt_header(gpt_header *hdr)
 
 char *guid_to_str(guid *buf)
 {
-
 	unsigned char bytes[sizeof(guid)];
 	// Copy the bytes from the GUID
 	memcpy(&bytes, buf, sizeof(guid));

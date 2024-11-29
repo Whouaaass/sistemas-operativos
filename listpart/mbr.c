@@ -1,7 +1,7 @@
 /**
  * @file mbr.c
  * @brief MBR partition table functions
- * @author Fredy Anaya <fredyanaya@unicauca.edu.co>
+ * @author Fredy Anaya <fredyanaya@unicauca.edu.co> 
  * @author Erwin Meza <emezav@unicauca.edu.co>
  * @copyright MIT License
  */

@@ -2,7 +2,7 @@
  * @file
  * @author Erwin Meza Vega <emezav@unicauca.edu.co>
  * @author Fredy Anaya <fredyanaya@unicauca.edu.co>
- * @brief Listar particiones de discos duros MBR/GPT
+ * @brief Listpart particiones de discos duros MBR/GPT
  * @copyright MIT License
  */
 
@@ -17,7 +17,7 @@
 #include "gpt.h"
 
 /** @brief cantidad de bytes en un sector */
-#define SECTOR_SIZE 512
+#define SECTOR_SIZE 512U
 
 /**
  * @brief prints the usage of the command
@@ -147,7 +147,7 @@ int list_partitions(char *disk_route)
 				continue;			
 
 			const gpt_partition_type *pt = get_gpt_partition_type(guid_to_str(&desc->partition_type_guid));
-			printf("%12u %12u %13u %s %s\n",
+			printf("%12lu %12lu %13lu %s %s\n",
 				   desc->starting_lba,
 				   desc->ending_lba,
 				   (desc->ending_lba - desc->starting_lba + 1) * SECTOR_SIZE,
@@ -248,5 +248,5 @@ void hex_dump(char *buf, size_t size)
 
 void usage()
 {
-	fprintf(stderr, "Usage: listpart <device>\n");
+	fprintf(stderr, "Usage: listpart <device_1> [device_2 ...]\n");
 }
