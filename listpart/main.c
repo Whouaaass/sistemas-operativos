@@ -100,6 +100,11 @@ int list_partitions(char *disk_route)
 		return 1;
 	}
 
+	if (!is_mbr(&boot_record)) {
+		fprintf(stderr, "the device is not mbr partitioned %s\n", disk_route);
+		return 2;
+	}
+
 	// PRE: se pudo leer el primer sector del disco y se leyó el MBR
 	// 3. Imprimir la tabla de particiones del MBR leido
 	print_mbr_table(&boot_record);
@@ -205,11 +210,11 @@ void print_mbr_table(mbr *mbr)
 void print_gpt_header(gpt_header *header)
 {
 	printf("GPT Header\n");
-	printf("Revision: 0x%x\n", header->signature);
-	printf("First usable LBA: %u\n", header->first_lba);
-	printf("Last usable LBA: %u\n", header->last_lba);
+	printf("Revision: 0x%llx\n", header->signature);
+	printf("First usable LBA: %llu\n", header->first_lba);
+	printf("Last usable LBA: %llu\n", header->last_lba);
 	printf("DISK GUID: %s\n", guid_to_str(&header->disk_guid));
-	printf("Partition Entry LBA: %u\n", header->partition_entry_lba);
+	printf("Partition Entry LBA: %llu\n", header->partition_entry_lba);
 	printf("Number of partition entries: %u\n", header->npartition_entries);
 	printf("Size of partition entry: %u\n", header->partition_entry_size);
 	printf("Total of partition table entry sectors: %u\n", (header->partition_entry_size * header->npartition_entries) / SECTOR_SIZE);
