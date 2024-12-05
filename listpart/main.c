@@ -15,6 +15,7 @@
 
 #include "mbr.h"
 #include "gpt.h"
+#include "utils.h"
 
 /** @brief cantidad de bytes en un sector */
 #define SECTOR_SIZE 512U
@@ -61,6 +62,14 @@ void print_mbr_table(mbr *mbr);
 void print_gpt_header(gpt_header *header);
 
 /**
+ * @brief Prints the GPT partitions
+ * @param header GPT header to print
+ * @param disk_route Disk route
+ * @return int 0 on success, 1 on failure
+ */
+int print_gpt_partitions(gpt_header *header, char *disk_route);
+
+/**
  * @brief Routine in charge of list all the partitions info of a disk
  * @param device_route Route where the device is located
  * @return 0 on success, otherwise on failure
@@ -70,7 +79,6 @@ int list_partitions(char *device_route);
 int main(int argc, char *argv[])
 {
 	int i;
-	char *disk;
 	// 1. validar los argumentos de la linea de comandos
 	if (argc < 1)
 	{
@@ -126,41 +134,9 @@ int list_partitions(char *disk_route)
 		fprintf(stderr, "the gpt header is not valid %s\n", disk_route);
 		return 3;
 	}
-	unsigned int nsectors = header.partition_entry_size * header.npartition_entries / SECTOR_SIZE;
 	print_gpt_header(&header);
-	// En el PTHDR se encuentran la cantidad de descriptores de la tabla
-	printf(
-		"Start LBA    End LBA      Size          Type                             Partition Name\n"
-		"------------ ------------ ------------- -------------------------------- ------------------------------\n");
-	// 5.2. Repetir:
-	for (int i = 0; i < nsectors; i++)
-	{
-		unsigned int sector = header.partition_entry_lba + i;
-		gpt_partition_descriptor descs[4];
-		// 5.2.1. Leer un sector que contiene descriptores de particion GPT
-		if (read_lba_sector(disk_route, sector, (char *) &descs) == 0) 
-		{
-			fprintf(stderr, "unable to read sector %u\n", sector);
-			return 4;
-		}
-		// 5.2.2. Para cada descriptor leido, imprimir su información
-		for (int j = 0; j < 4; j++)
-		{
-			gpt_partition_descriptor *desc = &descs[j];
-
-			if (is_null_descriptor(desc))
-				continue;			
-
-			const gpt_partition_type *pt = get_gpt_partition_type(guid_to_str(&desc->partition_type_guid));
-			printf("%12lu %12lu %13lu %s %s\n",
-				   desc->starting_lba,
-				   desc->ending_lba,
-				   (desc->ending_lba - desc->starting_lba + 1) * SECTOR_SIZE,
-				   pt->description == NULL ? "Unknown" : pt->description,
-				   gpt_decode_partition_name(desc->partition_name));
-		}
-	}
-	printf("------------ ------------ ------------- -------------------------------- ------------------------------\n");
+	print_gpt_partitions(&header, disk_route);	
+	return 0;
 }
 
 int read_lba_sector(char *disk, unsigned long long lba, char buf[SECTOR_SIZE])
@@ -219,6 +195,54 @@ void print_gpt_header(gpt_header *header)
 	printf("Size of partition entry: %u\n", header->partition_entry_size);
 	printf("Total of partition table entry sectors: %u\n", (header->partition_entry_size * header->npartition_entries) / SECTOR_SIZE);
 	printf("Size of partition descriptor: %u\n", header->partition_entry_size);
+}
+
+int print_gpt_partitions(gpt_header *header, char *disk_route)
+{
+	unsigned int nsectors = header->npartition_entries * header->partition_entry_size / SECTOR_SIZE;
+	// En el PTHDR se encuentran la cantidad de descriptores de la tabla
+	printf(
+		"Start LBA    End LBA      Size          Type                             Partition Name\n"
+		"------------ ------------ ------------- -------------------------------- ------------------------------\n");
+	// 5.2. Repetir:
+	for (unsigned int i = 0; i < nsectors; i++)
+	{
+		unsigned int sector = header->partition_entry_lba + i;
+		gpt_partition_descriptor descs[4];
+		// 5.2.1. Leer un sector que contiene descriptores de particion GPT
+		if (read_lba_sector(disk_route, sector, (char *) &descs) == 0) 
+		{
+			fprintf(stderr, "unable to read sector %u\n", sector);
+			return 1;
+		}
+		// 5.2.2. Para cada descriptor leido, imprimir su información
+		for (int j = 0; j < 4; j++)
+		{
+			gpt_partition_descriptor *desc = &descs[j];
+
+			if (is_null_descriptor(desc))
+				continue;			
+
+			const gpt_partition_type *pt = get_gpt_partition_type(guid_to_str(&desc->partition_type_guid));
+			printf("%12llu %12llu %13llu %-32.32s %s\n",
+				   desc->starting_lba,
+				   desc->ending_lba,
+				   (desc->ending_lba - desc->starting_lba + 1) * SECTOR_SIZE,
+				   pt->description == NULL ? "Unknown" : pt->description,
+				   gpt_decode_partition_name((char *)desc->partition_name));
+			if (strlen(pt->description) > 32)
+			{
+				printf("%12s %12s %13s %-32.32s %s\n",
+					   "",
+					   "",
+					   "",
+					   pt->description + 32,
+					   "");
+			}
+		}
+	}
+	printf("------------ ------------ ------------- -------------------------------- ------------------------------\n");
+	return 0;
 }
 
 void ascii_dump(char *buf, size_t size)
